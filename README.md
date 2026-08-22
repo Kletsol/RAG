@@ -55,7 +55,7 @@ Text
 
 Some articles, references and tutorials I used during the elaboration of this project:
 
-- Link :  
+- https://realpython.com/llamaindex-examples/ :  
 
 AI usage :
 
@@ -91,3 +91,29 @@ Text
 ### -> Example usage
 
 Text
+
+
+
+[BaseModel].model_validate(data) for pydantic validation
+
+
+
+[project]
+name = "42-rag-2-0"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "accelerate>=1.14.0",
+    "bm25s>=0.3.9",
+    "colorama>=0.4.6",
+    "fastapi[standard]>=0.139.0",
+    "fire>=0.7.1",
+    "langchain>=1.3.12",
+    "langchain-community>=0.4.2",
+    "pydantic>=2.13.4",
+    "torch>=2.13.0",
+    "tqdm>=4.68.4",
+    "transformers>=5.13.0",
+]
