@@ -10,5 +10,6 @@ dependencies = [
     "langchain>=1.3.16",
     "langchain-community>=0.4.2",
     "pydantic>=2.13.4",
+    "tqdm>=4.70.0",
     "transformers>=5.15.1",
 ]
