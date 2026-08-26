@@ -1,6 +1,4 @@
-from multiprocessing import Process
-
-from .Retriever import BM25SRetriever
+from .Retriever import BM25SRetriever, RetrieverError
 
 class ProcessorError(Exception):
     pass
@@ -14,13 +12,18 @@ class Processor:
         retriever = BM25SRetriever()
         retriever.index(max_chunk_size, overlap=15/100)
         try:
-            retriever.export()
+            retriever.save()
         except Exception:
             raise ProcessorError('test')
 
     def search(query: str, k: int = 5) -> None:
         if query == "":
             raise ProcessorError('[ERROR]: Empty query')
+        retriever = BM25SRetriever()
+        try:
+            retriever.load()
+        except RetrieverError:
+            raise ProcessorError("[ERROR]: Loading failed. No index found.")
 
     def search_dataset(dataset_path: str, k: int, save_directory: str) -> None:
         pass
