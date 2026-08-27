@@ -1,10 +1,16 @@
+import json
+
 import bm25s
-from pydantic import Field
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.documents import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from langchain_text_splitters import RecursiveCharacterTextSplitter, Language, MarkdownHeaderTextSplitter
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_text_splitters import (
+    Language,
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
+from pydantic import Field, ConfigDict
 
 
 class RetrieverError(Exception):
@@ -13,8 +19,7 @@ class RetrieverError(Exception):
 
 class LoaderSplitter:
 
-    def load(self, chunk_size: int, overlap: int, ext: str, path: str = './data/raw') -> list[Document]:
-        ext = ext.lstrip(".")
+    def load_from_extension(self, chunk_size: int, overlap: int, ext: str, path: str = './data/raw') -> list[Document]:
         loader = DirectoryLoader(path, glob=f"**/*.{ext}", loader_cls=TextLoader)
         splitters = {'md': self.markdown_splitter,
                      'py': self.python_splitter,
@@ -27,6 +32,12 @@ class LoaderSplitter:
         if splitter is None:
             return []
         return splitter(documents, chunk_size, overlap)
+
+    def load(self, chunk_size: int, overlap: int, path: str = './data/raw') -> list[Document]:
+        splitted_md = self.load_from_extension(chunk_size, overlap, 'md', path)
+        splitted_py = self.load_from_extension(chunk_size, overlap, 'py', path)
+        splitted_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
+        return splitted_md + splitted_py + splitted_txt
 
     def python_splitter(self, documents: list[Document], chunk_size: int,
                         overlap: int) -> list[Document]:
@@ -66,20 +77,23 @@ class LoaderSplitter:
 
 class BM25SRetriever(BaseRetriever):
 
-    bm25_index: bm25s.BM25 = Field(description="BM25S index")
-    documents: list[Document] = Field(description="Langchain documents")
-    k: int = Field(default=4, description="number of documents to be returned")
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    retriever: bm25s.BM25 = Field(default=None, description="BM25S index")
+    documents: list[Document] = Field(default=None, description="Langchain documents")
     corpus: list[str] | None = None
 
-    @classmethod
-    def index(cls, documents: list[Document], k: int = 4, path: str | None = None) -> "BM25SRetriever":
-        corpus = [doc.page_content for doc in documents]
-        tokenized = bm25s.tokenize(corpus)
-        index = bm25s.BM25()
-        index.index(tokenized)
+    def index(self, documents: list[Document], k: int = 4, path: str | None = None) -> "BM25SRetriever":
+        self.corpus = [doc.page_content for doc in documents]
+        tokenized = bm25s.tokenize(self.corpus)
+        self.retriever = bm25s.BM25()
+        try:
+            self.retriever.index(tokenized)
+        except ValueError:
+            raise RetrieverError('[ERROR]: Cannot index corpus')
         if path:
-            index.save(path, corpus=corpus)
-        return cls(bm25_index=index, documents=documents, k=k)
+            self.retriever.save(path, corpus=self.corpus)
+        return self.retriever
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
         tokenized_query = bm25s.tokenize([query])
@@ -93,9 +107,10 @@ class BM25SRetriever(BaseRetriever):
 
     def save(self, path: str = "./data/processed") -> None:
         try:
-            self.bm25_index.save(path)
+            self.retriever.save(path)
             with open(f"{path}/corpus.json", 'w') as f:
                 json.dump(self.corpus, f)
+            print('[test]')
             docs = [doc.model_dump() for doc in self.documents]
             with open(f"{path}/documents.json", 'w') as f:
                 json.dump(docs, f)
