@@ -13,8 +13,10 @@ class LoaderError(Exception):
 
 class LoaderSplitter:
 
-    def load_from_extension(self, chunk_size: int, overlap: int, ext: str, path: str = './data/raw') -> list[Document]:
-        loader = DirectoryLoader(path, glob=f"**/*.{ext}", loader_cls=TextLoader)
+    def load_from_extension(self, chunk_size: int, overlap: int, ext: str,
+                            path: str = './data/raw') -> list[Document]:
+        loader = DirectoryLoader(path, glob=f"**/*.{ext}",
+                                 loader_cls=TextLoader)
         splitters = {'md': self.markdown_splitter,
                      'py': self.python_splitter,
                      'txt': self.text_splitter}
@@ -27,11 +29,12 @@ class LoaderSplitter:
             return []
         return splitter(documents, chunk_size, overlap)
 
-    def load(self, chunk_size: int, overlap: int, path: str = './data/raw') -> list[Document]:
-        splitted_md = self.load_from_extension(chunk_size, overlap, 'md', path)
-        splitted_py = self.load_from_extension(chunk_size, overlap, 'py', path)
-        splitted_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
-        return splitted_md + splitted_py + splitted_txt
+    def load(self, chunk_size: int, overlap: int, path: str = './data/raw'
+             ) -> list[Document]:
+        split_md = self.load_from_extension(chunk_size, overlap, 'md', path)
+        split_py = self.load_from_extension(chunk_size, overlap, 'py', path)
+        split_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
+        return split_md + split_py + split_txt
 
     def python_splitter(self, documents: list[Document], chunk_size: int,
                         overlap: int) -> list[Document]:

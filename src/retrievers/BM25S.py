@@ -15,11 +15,12 @@ class BM25SRetriever(BaseRetriever):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    retriever: bm25s.BM25 = Field(default=None, description="BM25S index")
-    documents: list[Document] = Field(default=None, description="Langchain documents")
+    retriever: bm25s.BM25 = Field(default=None)
+    documents: list[Document] = Field(default=None)
     corpus: list[str] | None = None
 
-    def index(self, documents: list[Document], k: int = 4, path: str | None = None) -> "BM25SRetriever":
+    def index(self, documents: list[Document], k: int = 4,
+              path: str | None = None) -> "BM25SRetriever":
         self.corpus = [doc.page_content for doc in documents]
         tokenized = bm25s.tokenize(self.corpus)
         self.retriever = bm25s.BM25()
@@ -31,10 +32,12 @@ class BM25SRetriever(BaseRetriever):
             self.retriever.save(path, corpus=self.corpus)
         return self.retriever
 
-    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
+    def _get_relevant_documents(
+            self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+            ) -> list[Document]:
         tokenized_query = bm25s.tokenize([query])
         n = min(self.k, len(self.documents))
-        results, _ = self.bm25_index.retrieve(tokenized_query, k=n)
+        results, _ = self.retriever.retrieve(tokenized_query, k=n)
         documents = []
         for i in range(results.shape[1]):
             idx = int(results[0, i])

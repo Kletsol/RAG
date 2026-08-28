@@ -11,7 +11,8 @@ class Processor:
 
     def index(self, max_chunk_size: int = 2000) -> None:
         if max_chunk_size < 200:
-            raise ProcessorError('[ERROR]: max_chunk_size cannot be lower than 200')
+            raise ProcessorError(
+                '[ERROR]: max_chunk_size cannot be lower than 200')
         loader = LoaderSplitter()
         documents = loader.load(max_chunk_size, overlap=50)
         retriever = BM25SRetriever()
@@ -30,7 +31,8 @@ class Processor:
         except RetrieverError:
             raise ProcessorError("[ERROR]: Loading failed. No index found.")
 
-    def search_dataset(dataset_path: str, k: int, save_directory: str) -> StudentSearchResults:
+    def search_dataset(dataset_path: str, k: int, save_directory: str
+                       ) -> StudentSearchResults:
         pass
 
     def answer(query: str, k: int = 5) -> str:

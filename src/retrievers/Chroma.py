@@ -9,9 +9,10 @@ class VectorRetriever(BaseRetriever):
 
     vectorstore: Chroma = Field(description="Chroma vectorstore")
     k: int = Field(default=5, description="Number of results")
-    embeddings: HuggingFaceEmbeddings | None = Field(default=None, description="Embedding model")
+    embeddings: HuggingFaceEmbeddings | None = Field(default=None)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def index(self, documents: list[Document], k: int = k, path: str = 'data/processed/vector') -> VectorRetriever:
+    def index(self, documents: list[Document], k: int = k,
+              path: str = 'data/processed/vector') -> "VectorRetriever":
         pass
