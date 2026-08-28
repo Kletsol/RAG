@@ -1,5 +1,6 @@
+from .LoaderSplitter import LoaderSplitter
 from .Models import MinimalSearchResults, StudentSearchResults
-from .Retriever import BM25SRetriever, LoaderSplitter, RetrieverError
+from .retrievers.BM25S import BM25SRetriever, RetrieverError
 
 
 class ProcessorError(Exception):

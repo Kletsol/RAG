@@ -13,7 +13,7 @@ from transformers import pipeline
 
 from .Models import StudentSearchResults
 from .Processor import Processor, ProcessorError
-from .Retriever import BM25SRetriever, LoaderSplitter, RetrieverError
+from .retrievers.BM25S import BM25SRetriever, LoaderSplitter, RetrieverError
 
 
 class CLI:
