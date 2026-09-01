@@ -121,56 +121,12 @@ dependencies = [
 
 
 
-Je travaille sur un projet dont le but global est de creer un RAG, avec plusieurs contraintes. Le sujet est le suivant :
-
-You will build a Retrieval-Augmented Generation system that answers questions
-about a codebase. You ingest the provided vLLM repository into a searchable index,
-retrieve the most relevant snippets for a question, generate an answer from them with
-Qwen/Qwen3-0.6B, and measure retrieval quality with recall@k. Your system is judged on
-whether it retrieves the right source locations and produces answers grounded in them.
-
-1. Indexing the codebase
-
-Everything starts with the index. Read the files you judge useful from the vLLM repos-
-itory shipped in the attachments, split each one into chunks, and persist an index that
-retrieval can query in milliseconds. Indexing the whole corpus must take at most 5
-minutes.
-A Python file and a Markdown page do not break apart the same way, so your program
-must implement two distinct chunking strategies:
-• Python code chunking,
-• Markdown / text chunking.
-
-For retrieval itself, implement at least one of the two classic lexical methods. The choice
-is yours:
-• TF-IDF,
-• BM25
-
-We'll use a BM25s retriever.
-
-2. Retrieval
-
-With the index built, you can search it. Given a question, your system returns the
-top-k most relevant snippets. Each result is a source location: a file_path and the
-character range (first_character_index, last_character_index) it covers, at most
-2000 characters wide.
-Retrieval must work for a single query and in batch over a whole dataset of questions read
-from JSON. On the reference datasets, your system must reach at least 80 % recall@5 on
-docs questions and 50 % on code questions.
-
-3. Answer generation
-
-With the right snippets retrieved, the system generates a natural-language answer using
-Qwen/Qwen3-0.6B. Pass the retrieved context to the model within its token budget, and
-produce structured JSON following the provided pydantic models.
-A satisfactory answer is:
-• Coherent and understandable,
-• Grounded in the retrieved sources, with no major hallucination,
-• On point: it answers the question actually asked.
-
-4. Data Models
-
-The following pydantic models are mandatory :
-
+Je travaille sur un projet encaldre dont le but est de recrer un RAG. Mes contraintes sont les suivantes :
+- Un dossier de fichiers contient les donnees a indexer. Seuls les fichiers .md, .py et .txt m'interessent
+- 2 retrievers, BM25S et Chroma, dont les resultats passeront par un RRF par la suite
+- Une gestion des etapes (index, load, retrieve...) via un controller
+- Des modeles pydantic obligatoires a respecter :
+'
 class MinimalSource(BaseModel):
     file_path: str
     first_character_index: int
@@ -219,78 +175,223 @@ The RagDataset model represents a dataset of RAG questions
 The MinimalSearchResults and MinimalAnswer models represent the search results and an answer
 
 The StudentSearchResults and StudentSearchResultsAndAnswer models represent search results and search results with answers
-
-5. Output
-
-Each command writes a JSON file that conforms to the provided pydantic models:
-• For search operations: Use StudentSearchResults model with:
-◦ search_results: List of MinimalSearchResults containing question_id, question and retrieved_sources
-◦ k: Number of results requested
-• For answer generation: Use StudentSearchResultsAndAnswer model with:
-◦ search_results: List of MinimalAnswer containing question_id, question, retrieved_sources, and answer
-◦ k: Number of results requested
-• Source information: Each MinimalSource contains:
-◦ file_path: path to the source file, relative to your project root and written exactly as in the ingested corpus (e.g. data/raw/vllm-0.10.1/...); it is compared verbatim to the reference
-◦ first_character_index: Starting character position
-◦ last_character_index: Ending character position
-
-6. Running the full pipeline
-
-The pipeline is driven by four commands, in order: index the corpus, search a whole
-dataset, score the results with the moulinette, then generate answers. The search and
-answer single-query commands shown earlier behave the same way on one question at a
-time.
-1- Index the corpus once:
-uv run python -m src index --max_chunk_size 2000
-Ingestion complete! Indices saved under data/processed/
-2- Search a dataset. Always scope --save_directory by dataset (UnansweredQuestions
-or AnsweredQuestions): the public datasets share file names, so writing every run into
-the same folder would overwrite previous results.
-uv run python -m src search_dataset
---dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json
---k 10
---save_directory data/output/search_results/UnansweredQuestions
-Saved student_search_results to data/output/search_results/UnansweredQuestions/dataset_docs_public.json
-3- Score with the moulinette (rename moulinette-ubuntu/-fedora to moulinette
-first). The student results come first, the ground-truth AnsweredQuestions dataset
-second.
-4- Generate answers from the search results:
-uv run python -m src answer_dataset
---student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json
---save_directory data/output/search_results_and_answer/UnansweredQuestions
-Loaded 100 questions ... Processed 100 of 100 questions
-Saved student_search_results_and_answer to .../UnansweredQuestions/dataset_docs_public.json
-
-7. Evaluation
-
-For each question, recall@k is the share of its correct sources that you retrieve in your
-top-k results. A correct source counts as found when one of your results is in the same
-file and overlaps its character range.
-The overlap bar is low (an IoU of 0.05), so you do not need to match the reference span
-exactly: retrieving a chunk that covers the right region of the right file is enough. A
-result in a different file never counts, which is why file_path must be exact.
-Your system must respect some minimal performances, listed below:
-• Indexing time: at most 5 minutes for the whole corpus.
-• Retrieval throughput: at most 90 seconds for 200 questions.
-• Recall@5: at least 80% on docs questions and 50% on code questions.
-
-Je me suis deja renseigne sur plusieurs outils utiles, et pense utiliser, entre autres:
-- BM25s pour le retriever,
-- langchain pour ses document loaders / text splitters
-- transformers pour acceder a Qwen
-Toutes ces librairies etant deja installees dans mon environnement virtuel (voir pyproject.toml):
 '
-[project]
-name = "rag"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "bm25s>=0.3.10",
-    "fire>=0.7.1",
-    "pydantic>=2.13.4",
-    "transformers>=5.15.1",
-]
+J'ai deja ecrit mon LoaderSplitter et mes deux retrievers :
+LoaderSplitter :
 '
-Partant de la, quelles sont les etapes a suivre pour commencer ?
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_core.documents import Document
+from langchain_text_splitters import (
+    Language,
+    RecursiveCharacterTextSplitter,
+)
+
+
+class LoaderError(Exception):
+    pass
+
+
+class LoaderSplitter:
+
+    def _add_character_indices(self, chunks: list[Document]) -> list[Document]:
+        for chunk in chunks:
+            start = chunk.metadata["start_index"]
+            end = start + len(chunk.page_content)
+            chunk.metadata["first_character_index"] = start
+            chunk.metadata["last_character_index"] = end
+        return chunks
+
+    def load_from_extension(self, chunk_size: int, overlap: int, ext: str,
+                            path: str = './data/raw') -> list[Document]:
+        loader = DirectoryLoader(path, glob=f"**/*.{ext}",
+                                 loader_cls=TextLoader)
+        splitters = {'md': self.markdown_splitter,
+                     'py': self.python_splitter,
+                     'txt': self.text_splitter}
+        try:
+            documents = loader.load()
+        except (FileNotFoundError, ValueError, ImportError) as e:
+            raise LoaderError('[Error]: Could not load dataset') from e
+        splitter = splitters.get(ext)
+        if splitter is None:
+            return []
+        return splitter(documents, chunk_size, overlap)
+
+    def load(self, chunk_size: int, overlap: int, path: str = './data/raw'
+             ) -> list[Document]:
+        split_md = self.load_from_extension(chunk_size, overlap, 'md', path)
+        split_py = self.load_from_extension(chunk_size, overlap, 'py', path)
+        split_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
+        return split_md + split_py + split_txt
+
+    def python_splitter(self, documents: list[Document], chunk_size: int,
+                        overlap: int) -> list[Document]:
+        splitter = RecursiveCharacterTextSplitter.from_language(
+            language=Language.PYTHON,
+            chunk_size=chunk_size,
+            chunk_overlap=overlap,
+            add_start_index=True)
+        chunks = []
+        for document in documents:
+            document_chunks = splitter.split_documents([document])
+            document_chunks = self._add_character_indices(document_chunks)
+            chunks.extend(document_chunks)
+        return chunks
+
+    def text_splitter(self, documents: list[Document], chunk_size: int,
+                      overlap: int) -> list[Document]:
+        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size,
+                                                  chunk_overlap=overlap,
+                                                  add_start_index=True)
+        chunks = []
+        for document in documents:
+            document_chunks = splitter.split_documents([document])
+            document_chunks = self._add_character_indices(document_chunks)
+            chunks.extend(document_chunks)
+        return chunks
+
+    def markdown_splitter(self, documents: list[Document], chunk_size: int,
+                          overlap: int) -> list[Document]:
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=overlap,
+            add_start_index=True,
+            separators=[
+                "\n### ",
+                "\n## ",
+                "\n# ",
+                "\n\n",
+                "\n",
+                " ",
+                "",])
+        chunks = []
+        for document in documents:
+            document_chunks = splitter.split_documents([document])
+            document_chunks = self._add_character_indices(document_chunks)
+            chunks.extend(document_chunks)
+        return chunks
+'
+BM25S :
+'
+import json
+
+import bm25s
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from pydantic import ConfigDict, Field
+
+
+class RetrieverError(Exception):
+    pass
+
+
+class BM25SRetriever(BaseRetriever):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    retriever: bm25s.BM25 = Field(default=None)
+    documents: list[Document] = Field(default=None)
+    k: int = Field(default=5)
+
+    @classmethod
+    def index(cls, documents: list[Document], k: int = 4,
+              path: str | None = None) -> "BM25SRetriever":
+        corpus = [doc.page_content for doc in documents]
+        tokenized = bm25s.tokenize(corpus)
+        retriever = bm25s.BM25()
+        try:
+            retriever.index(tokenized)
+        except ValueError:
+            raise RetrieverError('[ERROR]: Cannot index corpus')
+        if path:
+            retriever.save(path, corpus=corpus)
+        return cls(retriever=retriever, documents=documents, k=k)
+
+    @classmethod
+    def from_index(cls, path, documents: list[Document], k: int = k
+                   ) -> "BM25SRetriever":
+        index = bm25s.BM25.load(path, load_corpus=False)
+        return cls(retriever=index, documents=documents, k=k)
+
+    def _get_relevant_documents(
+            self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+            ) -> list[Document]:
+        tokenized_query = bm25s.tokenize([query])
+        n = min(self.k, len(self.documents))
+        results, _ = self.retriever.retrieve(tokenized_query, k=n)
+        documents = []
+        for i in range(results.shape[1]):
+            idx = int(results[0, i])
+            documents.append(self.documents[idx])
+        return documents
+
+    def save(self, path: str = "./data/processed") -> None:
+        try:
+            self.retriever.save(path)
+            with open(f"{path}/corpus.json", 'w') as f:
+                json.dump(self.corpus, f)
+            print('[test]')
+            docs = [doc.model_dump() for doc in self.documents]
+            with open(f"{path}/documents.json", 'w') as f:
+                json.dump(docs, f)
+        except PermissionError:
+            raise RetrieverError("[ERROR]: Cannot save documents in folder -"
+                                 " permission denied")
+'
+Chroma :
+'
+from langchain_chroma import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from pydantic import ConfigDict, Field
+
+
+class VectorRetriever(BaseRetriever):
+
+    vectorstore: Chroma = Field(description="Chroma vectorstore")
+    k: int = Field(default=5, description="Number of results")
+    embeddings: HuggingFaceEmbeddings | None = Field(default=None)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @classmethod
+    def index(cls, documents: list[Document],
+              embeddings: HuggingFaceEmbeddings, k: int = k,
+              path: str = 'data/processed/vector') -> "VectorRetriever":
+        first_batch = documents[:250]
+        vectorstore = Chroma.from_documents(
+            documents=first_batch, embedding=embeddings,
+            persist_directory=path, collection_name="test")
+        remaining_docs = documents[250:]
+        if remaining_docs:
+            for i in range(0, len(remaining_docs), 250):
+                batch = remaining_docs[i: i + 250]
+                vectorstore.add_documents(batch)
+        return cls(vectorstore=vectorstore, k=k, embeddings=embeddings)
+
+    @classmethod
+    def from_index(cls, path: str,
+                   embeddings: HuggingFaceEmbeddings | None,
+                   k: int = k) -> "VectorRetriever":
+        embeddings = embeddings  # noqa: PLW0127
+        vectorstore = Chroma(persist_directory=path,
+                             embedding_function=embeddings,
+                             collection_name="test")
+        return cls(vectorstore=vectorstore, k=k, embeddings=embeddings)
+
+    def _get_relevant_documents(
+            self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+            ) -> list[Document]:
+        result = self.vectorstore.similarity_search_with_score(query, k=self.k)
+        output = []
+        for doc, score in result:
+            improved_doc = Document(
+                page_content=doc.page_content,
+                metadata={**doc.metadata,
+                          "chroma_score": round(float(score), 4)})
+            output.append(improved_doc)
+        return output
+'
