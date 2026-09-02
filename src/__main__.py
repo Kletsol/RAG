@@ -12,7 +12,7 @@ import fire
 from tqdm import tqdm
 
 # from transformers import pipeline
-from .Processor import Processor
+from .Processor import Processor, ProcessorError
 from .retrievers.BM25S import RetrieverError
 
 
@@ -33,7 +33,11 @@ class CLI:
 
     @staticmethod
     def search_dataset(dataset_path: str, k: int, save_directory: str) -> None:
-        pass
+        processor = Processor()
+        try:
+            processor.search_dataset(dataset_path, k, save_directory)
+        except ProcessorError as e:
+            raise ProcessorError("[ERROR]: Search failed") from e
 
     @staticmethod
     def answer(query: str, k: int = 5) -> None:
@@ -50,10 +54,6 @@ class CLI:
 
 
 if __name__ == "__main__":
-    # try:
-    # main()
-    # except Exception as e:
-    #     print(e)
     try:
         fire.Fire(CLI)
     except KeyboardInterrupt:

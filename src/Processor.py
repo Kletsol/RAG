@@ -2,11 +2,9 @@ import json
 import uuid
 from pathlib import Path
 
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 from ollama import chat
-
-from retrievers.Chroma import VectorRetriever
 
 from .LoaderSplitter import LoaderSplitter
 from .Models import (
@@ -19,6 +17,7 @@ from .Models import (
     StudentSearchResultsAndAnswer,
 )
 from .retrievers.BM25S import BM25SRetriever, RetrieverError
+from .retrievers.Chroma import VectorRetriever
 
 
 class ProcessorError(Exception):
@@ -57,7 +56,7 @@ class Processor:
             self.bm25_retriever = BM25SRetriever.index(
                 documents=documents, k=5, path=str(self.bm25s_dir))
         except RetrieverError as e:
-            raise ProcessorError("[ERROR]: COuld not create BM25 index") from e
+            raise ProcessorError("[ERROR]: Could not create BM25 index") from e
         # ------
         # Chroma
         # ------
@@ -99,7 +98,7 @@ class Processor:
     @staticmethod
     def _source_key_from_document(document: Document) -> tuple:
         return (document.metadata["file_path"],
-                document.metadata["first_character_index"].
+                document.metadata["first_character_index"],
                 document.metadata["last_character_index"])
 
     @staticmethod
@@ -186,7 +185,7 @@ class Processor:
                 json.dump(student_results.model_dump(), f,
                           ensure_ascii=False, indent=2)
         except OSError as e:
-            raise ProcessorError("[ERROR]: Can not save search results") from e
+            raise ProcessorError("[ERROR]: Cannot save search results") from e
         return student_results
 
     @staticmethod
@@ -240,7 +239,6 @@ Answer:
             raise ProcessorError("[ERROR]: LLM generation failed") from e
         return response.message.content.strip()
 
-
     def answer(self, query: str, k: int = 5) -> str:
         search_result = self.search(query=query, k=k)
         context = self._build_context(search_result.retrieved_sources)
@@ -266,15 +264,15 @@ Answer:
                 MinimalAnswer(question_id=result.question_id,
                               question=result.question,
                               retrieved_sources=result.retrieved_sources,
-                              answer=response.message.content.strip()))
-            final_results = (StudentSearchResultsAndAnswer(
-                search_results=answers, k=student_results.k))
-            output_dir = Path(save_directory)
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = (output_dir / "answers.json")
+                              answer=response))
+        final_results = (StudentSearchResultsAndAnswer(
+            search_results=answers, k=student_results.k))
+        output_dir = Path(save_directory)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = (output_dir / "answers.json")
         try:
-            with open(output_path, "w", encoding="utff-8") as f:
-                json.dump(final_results.model_dump(),f,ensure_ascii=False,
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(final_results.model_dump(), f, ensure_ascii=False,
                           indent=2)
         except OSError as e:
             raise ProcessorError("[ERROR]: Could not save answers") from e
