@@ -69,7 +69,8 @@ class BM25SRetriever(BaseRetriever):
         try:
             self.retriever.save(str(directory))
             documents = [document.model_dump() for document in self.documents]
-            with open(directory / "documents.json", 'w', encoding="utf-8") as f:
+            with open(directory / "documents.json", 'w',
+                      encoding="utf-8") as f:
                 json.dump(documents, f, ensure_ascii=False, indent=2)
         except PermissionError as e:
             raise RetrieverError("[ERROR]: Cannot save documents in folder -"

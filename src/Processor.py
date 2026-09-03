@@ -55,6 +55,7 @@ class Processor:
         try:
             self.bm25_retriever = BM25SRetriever.index(
                 documents=documents, k=5, path=str(self.bm25s_dir))
+            self.bm25_retriever.save(str(self.bm25s_dir))
         except RetrieverError as e:
             raise ProcessorError("[ERROR]: Could not create BM25 index") from e
         # ------
@@ -115,6 +116,7 @@ class Processor:
                              last_character_index=document.metadata[
                                  "last_character_index"])
 
+    @staticmethod
     def _rrf(bm25_documents: list[Document], chroma_documents: list[Document],
              k: int, rrf_k: int = 60) -> list[Document]:
         scores: dict[tuple, float] = {}
@@ -162,6 +164,7 @@ class Processor:
                        ) -> StudentSearchResults:
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
+        self.load(k=k)
         try:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))
@@ -199,7 +202,7 @@ class Processor:
             raise ProcessorError(
                 f"[ERROR]: Could not read source: {path}") from e
         return content[
-            source.first_character_index: source.last_character_index]
+            source.first_character_index: source.last_character_index + 1]
 
     def _build_context(self, sources: list[MinimalSource]) -> str:
         contexts = []
