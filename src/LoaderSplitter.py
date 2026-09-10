@@ -25,8 +25,8 @@ class LoaderSplitter:
                             path: str = './data/raw') -> list[Document]:
         loader = DirectoryLoader(path, glob=f"**/*.{ext}",
                                  loader_cls=TextLoader)
-        splitters = {'md': self.markdown_splitter,
-                     'py': self.python_splitter,
+        splitters = {'py': self.python_splitter,
+                     'md': self.markdown_splitter,
                      'txt': self.text_splitter}
         try:
             documents = loader.load()
@@ -42,7 +42,7 @@ class LoaderSplitter:
         split_md = self.load_from_extension(chunk_size, overlap, 'md', path)
         split_py = self.load_from_extension(chunk_size, overlap, 'py', path)
         split_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
-        return split_md + split_py + split_txt
+        return split_md + split_txt + split_py
 
     def python_splitter(self, documents: list[Document], chunk_size: int,
                         overlap: int) -> list[Document]:

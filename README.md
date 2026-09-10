@@ -7,7 +7,7 @@
 ## 📝 Description
 </span>
 
-Text
+This project's goal is to build a Retrieval-Augmented Generation system (RAG) that answers questions about a codebase. To achive that, it has to ingest a provided repository into a searchable index, retrieve the most relevant snippets for a question, generate an answer from them and measure retrieval quality with recall@k.
 
 <span style="color:turquoise">
 
@@ -57,6 +57,8 @@ Some articles, references and tutorials I used during the elaboration of this pr
 
 - https://realpython.com/llamaindex-examples/ :  
 
+- https://github.com/KeroBeros68/Obsidian-vault/tree/main/ia :  
+
 AI usage :
 
 <span style="color:turquoise">
@@ -86,7 +88,9 @@ Text
 
 ### -> Challenges faced
 
-Text
+During the execution of this project, I faced two main challenges :
+- First, RAG is a project that introduces us to many new concepts. Consequently, this requires reading and assimilating a large amount of documentation in a short time which can be overwhelming.
+- The subject states that indexing time must take at most 5 minutes for the whole corpus. However, adding a vector index makes this limit impossible to meet. I spent a lot of time trying to reduce the indexing time before finally asking one of my colleagues, who told me that this limit only applies to the lexical index.
 
 ### -> Example usage
 

@@ -2,13 +2,6 @@
 import time
 
 import fire
-
-# from langchain_classic.retrievers import EnsembleRetriever
-# from langchain_community.embeddings import HuggingFaceEmbeddings
-# from langchain_community.vectorstores import Chroma
-# from langchain_core.output_parsers import StrOutputParser
-# from langchain_core.prompts import ChatPromptTemplate
-# from langchain_core.runnables import RunnablePassthrough
 from tqdm import tqdm
 
 # from transformers import pipeline
@@ -19,8 +12,8 @@ from .retrievers.BM25S import RetrieverError
 class CLI:
 
     @staticmethod
-    def index(max_chunk_size: int = 2000) -> None:
-        processor = Processor()
+    def index(max_chunk_size: int = 2000, bonus: bool = False) -> None:
+        processor = Processor(bonus=bonus)
         try:
             processor.index(max_chunk_size)
         except RetrieverError as e:
@@ -32,8 +25,9 @@ class CLI:
             time.sleep(0.01)
 
     @staticmethod
-    def search_dataset(dataset_path: str, k: int, save_directory: str) -> None:
-        processor = Processor()
+    def search_dataset(dataset_path: str, k: int, save_directory: str,
+                       bonus: bool = False) -> None:
+        processor = Processor(bonus=bonus)
         try:
             processor.search_dataset(dataset_path, k, save_directory)
         except ProcessorError as e:
@@ -55,7 +49,11 @@ class CLI:
 
     @staticmethod
     def evaluate(student_search_results_path: str, dataset_path: str) -> None:
-        pass
+        processor = Processor()
+        try:
+            processor.evaluate(student_search_results_path, dataset_path)
+        except ProcessorError as e:
+            raise ProcessorError("[ERROR]: Evaluation failed") from e
 
 
 if __name__ == "__main__":

@@ -27,7 +27,8 @@ class ProcessorError(Exception):
 class Processor:
 
     def __init__(self, raw_directory: str = "./data/raw",
-                 processed_directory: str = "./data/processed"):
+                 processed_directory: str = "./data/processed",
+                 bonus: bool = False):
         self.raw_dir = Path(raw_directory)
         self.processed_dir = Path(processed_directory)
         self.bm25s_dir = (self.processed_dir / "bm25")
@@ -35,6 +36,7 @@ class Processor:
         self.bm25_retriever = None
         self.vector_retriever = None
         self.embeddings = None
+        self.vector: bool = bonus
 
     def index(self, max_chunk_size: int = 2000) -> None:
         if max_chunk_size < 200:
@@ -61,15 +63,16 @@ class Processor:
         # ------
         # Chroma
         # ------
-        try:
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2")
-            self.vector_retriever = VectorRetriever.index(
-                documents=documents, embeddings=self.embeddings,
-                k=5, path=str(self.vector_dir))
-        except Exception as e:
-            raise ProcessorError(
-                "[ERROR]: Could not create Chroma index") from e
+        if self.vector is True:
+            try:
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2")
+                self.vector_retriever = VectorRetriever.index(
+                    documents=documents, embeddings=self.embeddings,
+                    k=5, path=str(self.vector_dir))
+            except Exception as e:
+                raise ProcessorError(
+                    "[ERROR]: Could not create Chroma index") from e
 
     def load(self, k: int = 5) -> None:
         documents_path = (self.bm25s_dir / "documents.json")
@@ -88,13 +91,15 @@ class Processor:
                 path=str(self.bm25s_dir), documents=documents, k=k))
         except RetrieverError as e:
             raise ProcessorError("[ERROR]: Could not load BM25S index") from e
-        try:
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/all-MiniLM-L6-v2")
-            self.vector_retriever = (VectorRetriever.from_index(
-                path=str(self.vector_dir), embeddings=self.embeddings, k=k))
-        except Exception as e:
-            raise ProcessorError("[ERROR]: Could not load Chroma index") from e
+        if self.vector is True:
+            try:
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2")
+                self.vector_retriever = (VectorRetriever.from_index(
+                    path=str(self.vector_dir),
+                    embeddings=self.embeddings, k=k))
+            except Exception:
+                raise ProcessorError("[ERROR]: Could not load Chroma index")
 
     @staticmethod
     def _source_key_from_document(document: Document) -> tuple:
@@ -146,25 +151,33 @@ class Processor:
             raise ProcessorError("[ERROR]: Empty query")
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
-        if (self.bm25_retriever is None or self.vector_retriever is None):
+        if (self.bm25_retriever is None) or (
+                self.vector is True and self.vector_retriever is None):
             raise ProcessorError("[ERROR]: No index loaded")
+
         try:
             bm25_documents = (self.bm25_retriever.invoke(query))
-            chroma_documents = (self.vector_retriever.invoke(query))
+            if self.vector is True:
+                chroma_documents = (self.vector_retriever.invoke(query))
         except Exception as e:
             raise ProcessorError("[ERROR]: Retrieval failed") from e
-        documents = self._rrf(bm25_documents=bm25_documents,
-                              chroma_documents=chroma_documents, k=k)
+
+        if self.vector is True:
+            documents = self._rrf(bm25_documents=bm25_documents,
+                                  chroma_documents=chroma_documents, k=k)
+        else:
+            documents = bm25_documents
         sources = [self._document_to_source(doc) for doc in documents]
+
         return MinimalSearchResults(
             question_id=str(uuid.uuid4()), question=query,
             retrieved_sources=sources)
 
-    def search_dataset(self, dataset_path: str, k: int, save_directory: str
+    def search_dataset(self, dataset_path: str, k: int, save_directory: str,
                        ) -> StudentSearchResults:
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
-        self.load(k=k)
+        self.load(k=k, )
         try:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))
@@ -303,11 +316,20 @@ Answer:
             expected_sources = ground_truth.get(result.question_id)
             if not expected_sources:
                 continue
-            expected = {self._source_key(src) for src in expected_sources}
-            retrieved = {self._source_key(src)
-                         for src in result.retrieved_sources}
-            hits = expected & retrieved
-            recall = len(hits) / len(expected)
+            hits = 0
+            for expected_source in expected_sources:
+                found = False
+                for retrieved_source in result.retrieved_sources:
+                    if (expected_source.file_path == retrieved_source.file_path
+                        and expected_source.first_character_index
+                        <= retrieved_source.last_character_index
+                        and retrieved_source.first_character_index
+                        <= expected_source.last_character_index):
+                        found = True
+                        break
+                if found:
+                    hits += 1
+            recall = hits / len(expected_sources)
             recalls.append(recall)
             print(f"{result.question_id}: "
                   f"recall@{student_results.k} = {recall:.4f}")
