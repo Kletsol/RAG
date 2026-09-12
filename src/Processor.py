@@ -6,6 +6,7 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from ollama import chat
 
+from .Fusion import RRF
 from .LoaderSplitter import LoaderSplitter
 from .Models import (
     AnsweredQuestion,
@@ -102,18 +103,6 @@ class Processor:
                 raise ProcessorError("[ERROR]: Could not load Chroma index")
 
     @staticmethod
-    def _source_key_from_document(document: Document) -> tuple:
-        return (document.metadata["file_path"],
-                document.metadata["first_character_index"],
-                document.metadata["last_character_index"])
-
-    @staticmethod
-    def _source_key(source: MinimalSource) -> tuple:
-        return (source.file_path,
-                source.first_character_index,
-                source.last_character_index)
-
-    @staticmethod
     def _document_to_source(document: Document) -> MinimalSource:
         return MinimalSource(file_path=document.metadata["file_path"],
                              first_character_index=document.metadata[
@@ -121,32 +110,8 @@ class Processor:
                              last_character_index=document.metadata[
                                  "last_character_index"])
 
-    @staticmethod
-    def _rrf(bm25_documents: list[Document], chroma_documents: list[Document],
-             k: int, rrf_k: int = 60) -> list[Document]:
-        scores: dict[tuple, float] = {}
-        documents: dict[tuple, Document] = {}
-        # ------
-        # BM25 ranking
-        # ------
-        for rank, document in enumerate(bm25_documents[:k], start=1):
-            key = Processor._source_key_from_document(document)
-            scores[key] = (scores.get(key, 0.0) + 1.0 / (rrf_k + rank))
-            documents[key] = document
-        # ------
-        # Chroma ranking
-        # ------
-        for rank, document in enumerate(chroma_documents[:k], start=1):
-            key = Processor._source_key_from_document(document)
-            scores[key] = (scores.get(key, 0.0) + 1.0 / (rrf_k + rank))
-            documents[key] = document
-
-        sorted_keys = sorted(scores.keys(),
-                             key=lambda key: scores[key], reverse=True)
-
-        return [documents[key] for key in sorted_keys[:k]]
-
     def search(self, query: str, k: int = 5) -> MinimalSearchResults:
+        self.load(k=k)
         if not query.strip():
             raise ProcessorError("[ERROR]: Empty query")
         if k <= 0:
@@ -163,8 +128,8 @@ class Processor:
             raise ProcessorError("[ERROR]: Retrieval failed") from e
 
         if self.vector is True:
-            documents = self._rrf(bm25_documents=bm25_documents,
-                                  chroma_documents=chroma_documents, k=k)
+            documents = RRF._rrf(bm25_documents=bm25_documents,
+                                 chroma_documents=chroma_documents, k=k)
         else:
             documents = bm25_documents
         sources = [self._document_to_source(doc) for doc in documents]
@@ -177,7 +142,7 @@ class Processor:
                        ) -> StudentSearchResults:
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
-        self.load(k=k, )
+        self.load(k=k)
         try:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))
@@ -228,7 +193,7 @@ class Processor:
 
     def _generate_answer(self, question: str, context: str) -> str:
         prompt = f"""
-You are a retrieval-augmented generation assistant.
+You are a developer's retrieval-augmented generation assistant.
 
 Answer the user's question using ONLY the provided context.
 
@@ -237,7 +202,7 @@ Rules:
 - Do not invent information.
 - If the context does not contain enough information,
   say that the answer cannot be determined from the provided context.
-- Be concise and directly answer the question.
+- Be concise and answer the question using technical terms from the context.
 
 Context:
 {context}
@@ -324,7 +289,7 @@ Answer:
                         and expected_source.first_character_index
                         <= retrieved_source.last_character_index
                         and retrieved_source.first_character_index
-                        <= expected_source.last_character_index):
+                            <= expected_source.last_character_index):
                         found = True
                         break
                 if found:

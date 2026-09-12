@@ -1,8 +1,4 @@
-# import json
-import time
-
 import fire
-from tqdm import tqdm
 
 # from transformers import pipeline
 from .Processor import Processor, ProcessorError
@@ -20,9 +16,17 @@ class CLI:
             raise RetrieverError(e)
 
     @staticmethod
-    def search(query: str, k: int = 5) -> None:
-        for i in tqdm(range(1000), desc="Ceci est un loooong test"):
-            time.sleep(0.01)
+    def search(query: str, k: int = 5, bonus: bool = False) -> None:
+        processor = Processor(bonus=bonus)
+        try:
+            result = processor.search(query, k)
+        except ProcessorError as e:
+            raise ProcessorError(e)
+        for row in result.retrieved_sources:
+            print(
+                f"{row.file_path} "
+                f"[{row.first_character_index}:{row.last_character_index}]"
+            )
 
     @staticmethod
     def search_dataset(dataset_path: str, k: int, save_directory: str,
@@ -35,7 +39,12 @@ class CLI:
 
     @staticmethod
     def answer(query: str, k: int = 5) -> None:
-        pass
+        processor = Processor()
+        try:
+            answer = processor.answer(query, k)
+        except ProcessorError as e:
+            raise ProcessorError(e)
+        print(answer)
 
     @staticmethod
     def answer_dataset(student_search_results_path: str,
@@ -62,5 +71,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('\033[H\033[J')
         print("\033[0;32mAborted - See you soon :D\033[0;0m")
-    except RetrieverError:
-        pass
+    except (RetrieverError, ProcessorError) as e:
+        print(e)
