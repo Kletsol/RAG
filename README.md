@@ -7,7 +7,7 @@
 ## 📝 Description
 </span>
 
-This project's goal is to build a Retrieval-Augmented Generation system (RAG) that answers questions about a codebase. To achive that, it has to ingest a provided repository into a searchable index, retrieve the most relevant snippets for a question, generate an answer from them and measure retrieval quality with recall@k.
+This project's goal is to build a Retrieval-Augmented Generation system (RAG) that answers questions about a codebase. To achieve that, it has to ingest a provided repository into a searchable index, retrieve the most relevant snippets for a question, generate an answer from them and measure retrieval quality with recall@k.
 
 <span style="color:turquoise">
 
@@ -68,7 +68,22 @@ AI usage :
 
 ### -> System architecture
 
-Text
+My RAG is built on the model of an Hybrid RAG and therefore follows these steps:
+
+**1- Indexing:**
+
+- Python (.py), text (.txt) and Markdown (.md) files are extracted from the corpus and splitted
+- Each line resulting from this operation is indexed using two strategies : lexical indexing and vectorial indexing
+
+**2- Search:**
+
+- Each query is treated both by two retrievers: BM25S (lexical) and Chroma (semantic)
+- The results of each retriever are then fused using a Reciprocal Rank Fusion (RRF)algorithm, to get the most relevant sources
+
+**3- Answer:**
+
+- The sources are sent to an LLM as context along with the query, in a precise prompt
+- The LLM produces an answer to the query, based only on the given context and not on its external knowledge.
 
 ### -> Chunking strategy
 
@@ -95,29 +110,3 @@ During the execution of this project, I faced two main challenges :
 ### -> Example usage
 
 Text
-
-
-
-[BaseModel].model_validate(data) for pydantic validation
-
-
-
-[project]
-name = "42-rag-2-0"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.14"
-dependencies = [
-    "accelerate>=1.14.0",
-    "bm25s>=0.3.9",
-    "colorama>=0.4.6",
-    "fastapi[standard]>=0.139.0",
-    "fire>=0.7.1",
-    "langchain>=1.3.12",
-    "langchain-community>=0.4.2",
-    "pydantic>=2.13.4",
-    "torch>=2.13.0",
-    "tqdm>=4.68.4",
-    "transformers>=5.13.0",
-]
