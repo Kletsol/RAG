@@ -35,7 +35,7 @@ class CLI:
         try:
             processor.search_dataset(dataset_path, k, save_directory)
         except ProcessorError as e:
-            raise ProcessorError("[ERROR]: Search failed") from e
+            raise ProcessorError(e)
 
     @staticmethod
     def answer(query: str, k: int = 5) -> None:

@@ -28,7 +28,8 @@ class VectorRetriever(BaseRetriever):
 
         remaining_docs = documents[250:]
         if remaining_docs:
-            for i in tqdm(range(0, len(remaining_docs), 250)):
+            for i in tqdm(range(0, len(remaining_docs), 250), desc='Indexing',
+                          colour='cyan'):
                 batch = remaining_docs[i: i + 250]
                 vectorstore.add_documents(batch)
 

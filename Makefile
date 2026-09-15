@@ -4,15 +4,8 @@ install:
 sync:
 	uv sync
 
-ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-
-.PHONY: run $(ARGS)
-
 run:
-	uv run python3 -m src $(ARGS)
-
-$(ARGS):
-	@:
+	uv run python3 -m src
 
 debug:
 	uv run python3 -m pdb -m src

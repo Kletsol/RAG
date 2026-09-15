@@ -1,13 +1,15 @@
 import json
+import os
 import uuid
 from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from ollama import chat
+from tqdm import tqdm
 
 from .Fusion import RRF
-from .LoaderSplitter import LoaderSplitter
+from .LoaderSplitter import LoaderError, LoaderSplitter
 from .Models import (
     AnsweredQuestion,
     MinimalAnswer,
@@ -38,17 +40,18 @@ class Processor:
         self.vector_retriever = None
         self.embeddings = None
         self.vector: bool = bonus
+        self.merger = None
 
     def index(self, max_chunk_size: int = 2000) -> None:
         if max_chunk_size < 200:
             raise ProcessorError(
-                '[ERROR]: max_chunk_size cannot be lower than 200')
+                "[ERROR]: max_chunk_size cannot be lower than 200")
         loader = LoaderSplitter()
         try:
-            documents = loader.load(max_chunk_size, overlap=50,
+            documents = loader.load(max_chunk_size, overlap=15,
                                     path=str(self.raw_dir))
-        except Exception as e:
-            raise ProcessorError("[ERROR]: Could not load dataset") from e
+        except LoaderError as e:
+            raise ProcessorError(e)
         if not documents:
             raise ProcessorError("[ERROR]: No documents found")
         self.processed_dir.mkdir(parents=True, exist_ok=True)
@@ -75,10 +78,10 @@ class Processor:
                 raise ProcessorError(
                     "[ERROR]: Could not create Chroma index") from e
 
-    def load(self, k: int = 5) -> None:
+    def load(self, k: int = 10) -> None:
         documents_path = (self.bm25s_dir / "documents.json")
         if not documents_path.exists():
-            raise ProcessorError("[ERROR]: documents.json not found")
+            raise ProcessorError("[ERROR]: No index found")
         try:
             with open(documents_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -92,7 +95,8 @@ class Processor:
                 path=str(self.bm25s_dir), documents=documents, k=k))
         except RetrieverError as e:
             raise ProcessorError("[ERROR]: Could not load BM25S index") from e
-        if self.vector is True:
+        if self.vector is True and self.embeddings is None and \
+                self.vector_retriever is None:
             try:
                 self.embeddings = HuggingFaceEmbeddings(
                     model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -128,8 +132,9 @@ class Processor:
             raise ProcessorError("[ERROR]: Retrieval failed") from e
 
         if self.vector is True:
-            documents = RRF._rrf(bm25_documents=bm25_documents,
-                                 chroma_documents=chroma_documents, k=k)
+            documents = self.merger._rrf(bm25_documents=bm25_documents,
+                                         chroma_documents=chroma_documents,
+                                         k=k)
         else:
             documents = bm25_documents
         sources = [self._document_to_source(doc) for doc in documents]
@@ -142,25 +147,30 @@ class Processor:
                        ) -> StudentSearchResults:
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
-        self.load(k=k)
+        if self.vector is True:
+            self.merger = RRF()
+        # self.load(k=k)
         try:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))
         except (OSError, json.JSONDecodeError, ValueError) as e:
-            raise ProcessorError("[ERROR]: Could not load dataset") from e
+            raise ProcessorError("\033[1;31m[ERROR]: Could not load dataset: "
+                                 f"\033[0;0m {e}")
 
         results = []
 
-        for question in dataset.rag_questions:
+        length = len(dataset.rag_questions)
+        for question in tqdm(dataset.rag_questions,
+                             desc=f'Processing {length} questions',
+                             colour='yellow'):
             result = self.search(query=question.question, k=k)
             result.question_id = question.question_id
             results.append(result)
 
         student_results = StudentSearchResults(search_results=results, k=k)
-        output_directory = Path(save_directory)
-        output_directory.mkdir(parents=True, exist_ok=True)
-        output_path = (output_directory / "search_results.json")
-
+        file_basename = os.path.basename(dataset_path)
+        os.makedirs(save_directory, exist_ok=True)
+        output_path = (f"{save_directory}/{file_basename}")
         try:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(student_results.model_dump(), f,
@@ -237,7 +247,8 @@ Answer:
 
         answers = []
 
-        for result in student_results.search_results:
+        for result in tqdm(student_results.search_results, desc='Answering',
+                           colour='green'):
             context = self._build_context(result.retrieved_sources)
             response = self._generate_answer(question=result.question,
                                              context=context)
