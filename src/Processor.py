@@ -7,7 +7,7 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from tqdm import tqdm
-from transformers import pipeline, GenerationConfig
+from transformers import GenerationConfig, pipeline
 
 from .Fusion import RRF
 from .LoaderSplitter import LoaderError, LoaderSplitter
@@ -206,10 +206,12 @@ class Processor:
         return "\n\n".join(contexts)
 
     def _generate_answer(self, question: str, context: str) -> str:
-        pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B', device_map='auto', clean_up_tokenization_spaces=False)
+        pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B',
+                        device_map='auto', clean_up_tokenization_spaces=False)
         message = [
             {'role': 'system',
-             'content': f"""Answer the user's question using ONLY the provided context.
+             'content': f"""Answer the user's question using ONLY the provided
+             context.
 
 Rules:
 - The context is : {context}.
@@ -218,7 +220,8 @@ Rules:
 - Do NOT invent information.
 - If the context does not contain enough information do NOT answer. Just
   say that the answer cannot be determined from the provided context.
-- Be concise and answer the question using technical terms from the context."""},
+- Be concise and answer the question using technical terms from the context."""
+            },
             {'role': 'user',
              'content': f'{question} /no_think'}
         ]
@@ -227,38 +230,6 @@ Rules:
         output = pipe(message, generation_config=gen_config)
         llm_response = str(output[0]["generated_text"][-1]["content"])
         return re.sub(r"<think>[\s\S]*?<\/think>\s*", '', llm_response)
-#         prompt = f"""
-# You are a developer's retrieval-augmented generation assistant.
-
-# Answer the user's question using ONLY the provided context.
-
-# Rules:
-# - Do not use external knowledge.
-# - Do not invent information.
-# - If the context does not contain enough information,
-#   say that the answer cannot be determined from the provided context.
-# - Be concise and answer the question using technical terms from the context.
-
-# Context:
-# {context}
-
-# Question:
-# {question}
-
-# Answer:
-# """
-        try:
-            response = chat(
-                model="qwen3:0.6b",
-                messages=[{"role": "user", "content": prompt}])
-        except Exception as e:
-            raise ProcessorError("[ERROR]: LLM generation failed") from e
-        if response.message.content:
-            answer = response.message.content.strip()
-        print("\n===========\n")
-        print(response.message)
-        print("\n===========\n")
-        return answer
 
     def answer(self, query: str, k: int = 5) -> str:
         search_result = self.search(query=query, k=k)
