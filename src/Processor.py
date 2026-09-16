@@ -1,12 +1,13 @@
 import json
 import os
+import re
 import uuid
 from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
-from ollama import chat
 from tqdm import tqdm
+from transformers import pipeline, GenerationConfig
 
 from .Fusion import RRF
 from .LoaderSplitter import LoaderError, LoaderSplitter
@@ -167,8 +168,10 @@ class Processor:
             result = self.search(query=question.question, k=k)
             result.question_id = question.question_id
             results.append(result)
-
         student_results = StudentSearchResults(search_results=results, k=k)
+        # ------
+        # Save
+        # ------
         file_basename = os.path.basename(dataset_path)
         os.makedirs(save_directory, exist_ok=True)
         output_path = (f"{save_directory}/{file_basename}")
@@ -203,26 +206,47 @@ class Processor:
         return "\n\n".join(contexts)
 
     def _generate_answer(self, question: str, context: str) -> str:
-        prompt = f"""
-You are a developer's retrieval-augmented generation assistant.
-
-Answer the user's question using ONLY the provided context.
+        pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B', device_map='auto', clean_up_tokenization_spaces=False)
+        message = [
+            {'role': 'system',
+             'content': f"""Answer the user's question using ONLY the provided context.
 
 Rules:
-- Do not use external knowledge.
-- Do not invent information.
-- If the context does not contain enough information,
+- The context is : {context}.
+- '{question}' is never a part of the context.
+- Do NOT use external knowledge.
+- Do NOT invent information.
+- If the context does not contain enough information do NOT answer. Just
   say that the answer cannot be determined from the provided context.
-- Be concise and answer the question using technical terms from the context.
+- Be concise and answer the question using technical terms from the context."""},
+            {'role': 'user',
+             'content': f'{question} /no_think'}
+        ]
+        gen_config = GenerationConfig.from_pretrained('Qwen/Qwen3-0.6B')
+        gen_config.max_new_tokens = 256
+        output = pipe(message, generation_config=gen_config)
+        llm_response = str(output[0]["generated_text"][-1]["content"])
+        return re.sub(r"<think>[\s\S]*?<\/think>\s*", '', llm_response)
+#         prompt = f"""
+# You are a developer's retrieval-augmented generation assistant.
 
-Context:
-{context}
+# Answer the user's question using ONLY the provided context.
 
-Question:
-{question}
+# Rules:
+# - Do not use external knowledge.
+# - Do not invent information.
+# - If the context does not contain enough information,
+#   say that the answer cannot be determined from the provided context.
+# - Be concise and answer the question using technical terms from the context.
 
-Answer:
-"""
+# Context:
+# {context}
+
+# Question:
+# {question}
+
+# Answer:
+# """
         try:
             response = chat(
                 model="qwen3:0.6b",
@@ -231,6 +255,9 @@ Answer:
             raise ProcessorError("[ERROR]: LLM generation failed") from e
         if response.message.content:
             answer = response.message.content.strip()
+        print("\n===========\n")
+        print(response.message)
+        print("\n===========\n")
         return answer
 
     def answer(self, query: str, k: int = 5) -> str:
@@ -240,14 +267,24 @@ Answer:
 
     def answer_dataset(self, student_search_results_path: str,
                        save_directory: str) -> str:
+        # ------
+        # Read results file
+        # ------
         try:
             with open(student_search_results_path, "r", encoding="utf-8") as f:
                 student_results = (
                     StudentSearchResults.model_validate(json.load(f)))
-        except (OSError, json.JSONDecodeError, ValueError) as e:
+        except OSError:
             raise ProcessorError(
-                "[ERROR]: Could not load search results") from e
-
+                "[ERROR]: File not found - "
+                f"{os.path.basename(student_search_results_path)}")
+        except json.JSONDecodeError:
+            raise ProcessorError("[ERROR]: Invalid json")
+        except ValueError:
+            raise ProcessorError("[ERROR]: Could not load search results")
+        # ------
+        # Answer
+        # ------
         answers = []
 
         for result in tqdm(student_results.search_results, desc='Answering',
@@ -262,9 +299,12 @@ Answer:
                               answer=response))
         final_results = (StudentSearchResultsAndAnswer(
             search_results=answers, k=student_results.k))
-        output_dir = Path(save_directory)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = (output_dir / "answers.json")
+        # ------
+        # Save
+        # ------
+        file_basename = os.path.basename(student_search_results_path)
+        os.makedirs(save_directory, exist_ok=True)
+        output_path = (f"{save_directory}/{file_basename}")
         try:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(final_results.model_dump(), f, ensure_ascii=False,

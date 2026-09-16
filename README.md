@@ -119,7 +119,12 @@ As this table shows, the indexing step with Chroma is very time-consuming. This 
 ### -> Design Decisions
 </span>
 
-My design was primarily dictated by the constraints of the subject.
+My design was primarily dictated by the constraints of the subject :
+
+- The repository's layout respects the structure given by the subject
+- Same for the CLI
+- Regarding the project itself, I chose BM25 over TF-IDF because BM25 incorporates a crucial adjustment for document length : this prevents very long documents from being unfairly ranked due to an excessively high word count. And more generally, it's considered a more advanced model.
+- The rest of the project is built around this idea, with semantic embeddings and Hybrid retrieval as a bonus.
 
 <span style="color:orange">
 

@@ -54,7 +54,7 @@ class CLI:
             processor.answer_dataset(student_search_results_path,
                                      save_directory)
         except ProcessorError as e:
-            raise ProcessorError("[ERROR]: Answering failed") from e
+            raise ProcessorError(f"Answering failed: {e}")
 
     @staticmethod
     def evaluate(student_search_results_path: str, dataset_path: str) -> None:
