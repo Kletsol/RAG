@@ -18,3 +18,20 @@ dependencies = [
     "tqdm>=4.70.0",
     "transformers>=5.15.1",
 ]
+
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+    "mypy>=2.2.0",
+]
+
+[tool.mypy]
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+namespace_packages = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["fire", "bm25s"]
+ignore_missing_imports = true

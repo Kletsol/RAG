@@ -4,7 +4,7 @@ from langchain_core.documents import Document
 class RRF:
 
     @staticmethod
-    def _source_key_from_document(document: Document) -> tuple:
+    def _source_key_from_document(document: Document) -> tuple[str, int, int]:
         return (document.metadata["file_path"],
                 document.metadata["first_character_index"],
                 document.metadata["last_character_index"])
@@ -12,8 +12,8 @@ class RRF:
     def _rrf(self, bm25_documents: list[Document],
              chroma_documents: list[Document],
              k: int, rrf_k: int = 60) -> list[Document]:
-        scores: dict[tuple, float] = {}
-        documents: dict[tuple, Document] = {}
+        scores: dict[tuple[str, int, int], float] = {}
+        documents: dict[tuple[str, int, int], Document] = {}
         # ------
         # BM25 ranking
         # ------

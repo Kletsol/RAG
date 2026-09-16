@@ -38,7 +38,7 @@ class Processor:
         self.vector_dir = (self.processed_dir / "vector")
         self.bm25_retriever = None
         self.vector_retriever = None
-        self.embeddings = None
+        self.embeddings: HuggingFaceEmbeddings | None = None
         self.vector: bool = bonus
         self.merger = None
 
@@ -61,7 +61,8 @@ class Processor:
         try:
             self.bm25_retriever = BM25SRetriever.index(
                 documents=documents, k=5, path=str(self.bm25s_dir))
-            self.bm25_retriever.save(str(self.bm25s_dir))
+            if self.bm25_retriever is not None:
+                self.bm25_retriever.save(str(self.bm25s_dir))
         except RetrieverError as e:
             raise ProcessorError("[ERROR]: Could not create BM25 index") from e
         # ------
@@ -228,7 +229,9 @@ Answer:
                 messages=[{"role": "user", "content": prompt}])
         except Exception as e:
             raise ProcessorError("[ERROR]: LLM generation failed") from e
-        return response.message.content.strip()
+        if response.message.content:
+            answer = response.message.content.strip()
+        return answer
 
     def answer(self, query: str, k: int = 5) -> str:
         search_result = self.search(query=query, k=k)

@@ -37,7 +37,7 @@ class BM25SRetriever(BaseRetriever):
         return cls(retriever=retriever, documents=documents, k=k)
 
     @classmethod
-    def from_index(cls, path, documents: list[Document], k: int = 5
+    def from_index(cls, path: str, documents: list[Document], k: int = 5
                    ) -> "BM25SRetriever":
         try:
             index = bm25s.BM25.load(path, load_corpus=False)
