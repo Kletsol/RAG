@@ -5,7 +5,7 @@ from transformers import GenerationConfig, pipeline
 
 class LLM:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B',
                              device_map='auto',
                              clean_up_tokenization_spaces=False)

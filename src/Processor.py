@@ -40,7 +40,7 @@ class Processor:
         self.embeddings: HuggingFaceEmbeddings | None = None
         self.vector: bool = bonus
         self.merger = None
-        self.llm = None
+        self.llm = LLM | None
 
     def index(self, max_chunk_size: int = 2000) -> None:
         if max_chunk_size < 200:
@@ -178,8 +178,8 @@ class Processor:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(student_results.model_dump(), f,
                           ensure_ascii=False, indent=2)
-        except OSError as e:
-            raise ProcessorError("[ERROR]: Cannot save search results") from e
+        except OSError:
+            raise ProcessorError("[ERROR]: Cannot save search results")
         return student_results
 
     @staticmethod
@@ -209,7 +209,7 @@ class Processor:
             self.llm = LLM()
         search_result = self.search(query=query, k=k)
         context = self._build_context(search_result.retrieved_sources)
-        return self.llm._generate_answer(question=query, context=context)
+        return str(self.llm._generate_answer(question=query, context=context))
 
     def answer_dataset(self, student_search_results_path: str,
                        save_directory: str) -> str:

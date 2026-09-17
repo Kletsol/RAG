@@ -6,17 +6,11 @@ from tqdm import tqdm
 from .Models import AnsweredQuestion, RagDataset, StudentSearchResults
 
 
-class EvaluationError(Exception):
-    """
-    Errors related to the evaluation process.
-    """
+class EvaluatorError(Exception):
     pass
 
 
 class EvaluationResult(BaseModel):
-    """
-    Class representing an evaluation result.
-    """
     recall1: float
     recall3: float
     recall5: float
@@ -27,34 +21,6 @@ class EvaluationResult(BaseModel):
 class Evaluator:
     def evaluate(self, student_search_results_path: str, dataset_path: str
                  ) -> EvaluationResult:
-        """
-        Evaluate the results of the RAG with ground truth
-        datas to give a ratio of performances.
-        """
-        # # Load student results
-        # try:
-        #     with open(student_search_result_path, 'r') as f:
-        #         search_results = (
-        #             StudentSearchResults.model_validate(json.load(f)))
-        # except (FileNotFoundError, OSError, UnicodeDecodeError):
-        #     raise EvaluationError('Unable to read the '
-        #                           'search_results properly.')
-        # except ValidationError:
-        #     raise EvaluationError('Your student_search_result_path '
-        #                           'file is corrupted. Cannot read it.')
-
-        # # Load ground-truth dataset
-        # try:
-        #     with open(dataset_path, 'r') as f:
-        #         data = json.load(f)
-        #     ground_truth = RagDataset.model_validate(data)
-        # except (FileNotFoundError, OSError, UnicodeDecodeError):
-        #     raise EvaluationError('Unable to read the '
-        #                           'ground truth dataset properly.')
-        # except ValidationError:
-        #     raise EvaluationError('Your ground truth dataset '
-        #                           'file is corrupted. Cannot read it.')
-
         try:
             with open(student_search_results_path, "r", encoding="utf-8") as f:
                 student_results = (
@@ -62,7 +28,7 @@ class Evaluator:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))
         except (OSError, json.JSONDecodeError, ValueError):
-            raise EvaluationError("[ERROR]: Could not load evaluation data")
+            raise EvaluatorError("[ERROR]: Could not load evaluation data")
 
         # Calculate results
         values = [1, 3, 5, 10]
@@ -78,7 +44,7 @@ class Evaluator:
                                        questions_evaluated=len(
                                            student_results.search_results))
         except ValidationError:
-            raise EvaluationError('Could not evaluate the resuls.')
+            raise EvaluatorError('Could not evaluate the resuls.')
 
         return results
 
@@ -131,5 +97,5 @@ class Evaluator:
             recalls.append(recall)
         if not recalls:
             print("No questions available for evaluation")
-            return
+            return 0
         return sum(recalls) / len(recalls)
