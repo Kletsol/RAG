@@ -13,6 +13,15 @@ class LoaderError(Exception):
 class LoaderSplitter:
 
     def _add_character_indices(self, chunks: list[Document]) -> list[Document]:
+        """Takes a list of Documents and adds its source,
+        first and last character index
+
+        Args:
+            chunks (list[Document]): a file splitted in Documents
+
+        Returns:
+            list[Document]: the augmented list of Documents
+        """
         for chunk in chunks:
             start = chunk.metadata["start_index"]
             end = start + len(chunk.page_content)
@@ -23,6 +32,20 @@ class LoaderSplitter:
 
     def load_from_extension(self, chunk_size: int, overlap: int, ext: str,
                             path: str = './data/raw') -> list[Document]:
+        """Loads files depending on the given extension
+        and returns a splitted version of it
+
+        Args:
+            chunk_size (int): The size of the chunks resulting from
+                              the splitting process
+            overlap (int): The overlap needed between two chunks
+            ext (str): The extension we want to get
+            path (str, optional): The path of the data to process.
+                                  Defaults to './data/raw'.
+
+        Returns:
+            list[Document]: All the splitted files with the given extension
+        """
         loader = DirectoryLoader(path, glob=f"**/*.{ext}",
                                  loader_cls=TextLoader)
         splitters = {'py': self.python_splitter,
@@ -41,6 +64,18 @@ class LoaderSplitter:
 
     def load(self, chunk_size: int, overlap: int, path: str = './data/raw'
              ) -> list[Document]:
+        """An index loader: gets the files we want, splits it and returns
+        the whole index
+        Args:
+            chunk_size (int): The size of the chunks resulting from
+                              the splitting process
+            overlap (int): The overlap needed between two chunks
+            path (str, optional): The path of the data to process.
+                                  Defaults to './data/raw'.
+
+        Returns:
+            list[Document]: An index built from multiple files
+        """
         split_md = self.load_from_extension(chunk_size, overlap, 'md', path)
         split_py = self.load_from_extension(chunk_size, overlap, 'py', path)
         split_txt = self.load_from_extension(chunk_size, overlap, 'txt', path)
@@ -48,6 +83,7 @@ class LoaderSplitter:
 
     def python_splitter(self, documents: list[Document], chunk_size: int,
                         overlap: int) -> list[Document]:
+        """A splitter used for python (.py) files"""
         splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language.PYTHON,
             chunk_size=chunk_size,
@@ -62,6 +98,7 @@ class LoaderSplitter:
 
     def markdown_splitter(self, documents: list[Document], chunk_size: int,
                           overlap: int) -> list[Document]:
+        """A splitter used for markdown and text (.md | .txt) files"""
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=overlap,

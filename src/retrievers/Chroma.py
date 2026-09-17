@@ -19,6 +19,7 @@ class VectorRetriever(BaseRetriever):
     def index(cls, documents: list[Document],
               embeddings: HuggingFaceEmbeddings, k: int = 5,
               path: str = 'data/processed/vector') -> "VectorRetriever":
+        """Builds a Chroma index from documents and returns a retriever"""
 
         first_batch = documents[:250]
 
@@ -39,14 +40,18 @@ class VectorRetriever(BaseRetriever):
     def from_index(cls, path: str,
                    embeddings: HuggingFaceEmbeddings | None,
                    k: int = 5) -> "VectorRetriever":
+        """Loads an existing Chroma colletion from disk and
+           returns a retriever"""
         vectorstore = Chroma(persist_directory=path,
                              embedding_function=embeddings,
-                             collection_name="test")
+                             collection_name="rag_chunks")
         return cls(vectorstore=vectorstore, k=k, embeddings=embeddings)
 
     def _get_relevant_documents(
             self, query: str, *, run_manager: CallbackManagerForRetrieverRun
             ) -> list[Document]:
+        """Gets the top-k documents matching the query using
+           similarity, and returns it"""
         result = self.vectorstore.similarity_search_with_score(query, k=self.k)
         output = []
         for doc, score in result:

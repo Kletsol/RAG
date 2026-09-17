@@ -6,11 +6,14 @@ from transformers import GenerationConfig, pipeline
 class LLM:
 
     def __init__(self) -> None:
+        """Initializes the class with the given model"""
         self.pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B',
                              device_map='auto',
                              clean_up_tokenization_spaces=False)
 
     def _generate_answer(self, question: str, context: str) -> str:
+        """Uses an LLM to answer a question depending on the
+           provided context. Returns the answer."""
         message = [
             {'role': 'system',
                 'content': f"""Answer the user's question using ONLY the

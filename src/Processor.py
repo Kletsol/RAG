@@ -23,6 +23,7 @@ from .retrievers.Chroma import VectorRetriever
 
 
 class ProcessorError(Exception):
+    """A custom error for the Processor"""
     pass
 
 
@@ -43,6 +44,13 @@ class Processor:
         self.llm = LLM | None
 
     def index(self, max_chunk_size: int = 2000) -> None:
+        """Indexes the whole dataset using one or two retrievers
+
+        Args:
+            max_chunk_size (int, optional): The size of the chunks resulting
+                                            from the splitting process.
+                                            Defaults to 2000.
+        """
         if max_chunk_size < 200:
             raise ProcessorError(
                 "[ERROR]: max_chunk_size cannot be lower than 200")
@@ -64,7 +72,7 @@ class Processor:
             if self.bm25_retriever is not None:
                 self.bm25_retriever.save(str(self.bm25s_dir))
         except RetrieverError as e:
-            raise ProcessorError("[ERROR]: Could not create BM25 index") from e
+            raise ProcessorError(f"[ERROR]: Could not create BM25 index - {e}")
         # ------
         # Chroma
         # ------
@@ -77,25 +85,29 @@ class Processor:
                     k=5, path=str(self.vector_dir))
             except Exception as e:
                 raise ProcessorError(
-                    "[ERROR]: Could not create Chroma index") from e
+                    f"[ERROR]: Could not create Chroma index - {e}")
 
     def load(self, k: int = 10) -> None:
+        """Loads every existing index"""
         documents_path = (self.bm25s_dir / "documents.json")
         if not documents_path.exists():
             raise ProcessorError("[ERROR]: No index found")
+
         try:
             with open(documents_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             documents = [Document(
                 page_content=item["page_content"],
                 metadata=item["metadata"])for item in data]
-        except (OSError, json.JSONDecodeError, KeyError) as e:
-            raise ProcessorError("[ERROR]: Could not load documents") from e
+        except (OSError, json.JSONDecodeError, KeyError):
+            raise ProcessorError("[ERROR]: Could not load documents")
+
         try:
             self.bm25_retriever = (BM25SRetriever.from_index(
                 path=str(self.bm25s_dir), documents=documents, k=k))
-        except RetrieverError as e:
-            raise ProcessorError("[ERROR]: Could not load BM25S index") from e
+        except RetrieverError:
+            raise ProcessorError("[ERROR]: Could not load BM25S index")
+
         if self.vector is True and self.embeddings is None and \
                 self.vector_retriever is None:
             try:
@@ -109,6 +121,7 @@ class Processor:
 
     @staticmethod
     def _document_to_source(document: Document) -> MinimalSource:
+        """Returns the MinimalSource of a document"""
         return MinimalSource(file_path=document.metadata["file_path"],
                              first_character_index=document.metadata[
                                  "first_character_index"],
@@ -116,6 +129,18 @@ class Processor:
                                  "last_character_index"])
 
     def search(self, query: str, k: int = 5) -> MinimalSearchResults:
+        """Searches for sources corresponding to the provided query up to
+           a limit of k sources. Returns the result as a MinimalSearchResults
+           object.
+
+        Args:
+            query (str): The query to process
+            k (int, optional): The maximal number of sources retrieved.
+                               Defaults to 5.
+
+        Returns:
+            MinimalSearchResults: The result of the search
+        """
         self.load(k=k)
         if not query.strip():
             raise ProcessorError("[ERROR]: Empty query")
@@ -144,8 +169,18 @@ class Processor:
             question_id=str(uuid.uuid4()), question=query,
             retrieved_sources=sources)
 
-    def search_dataset(self, dataset_path: str, k: int, save_directory: str,
+    def search_dataset(self, dataset_path: str, k: int
                        ) -> StudentSearchResults:
+        """Searches for sources for all questions in the provided dataset.
+           Returns the results as a StudentSearchResults object.
+
+        Args:
+            dataset_path (str): The path to the dataset
+            k (int): The maximal number of sources retrieved.
+
+        Returns:
+            StudentSearchResults: The result of the search
+        """
         if k <= 0:
             raise ProcessorError("[ERROR]: k must be greater than 0")
         if self.vector is True:
@@ -168,22 +203,11 @@ class Processor:
             result.question_id = question.question_id
             results.append(result)
         student_results = StudentSearchResults(search_results=results, k=k)
-        # ------
-        # Save
-        # ------
-        file_basename = os.path.basename(dataset_path)
-        os.makedirs(save_directory, exist_ok=True)
-        output_path = (f"{save_directory}/{file_basename}")
-        try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(student_results.model_dump(), f,
-                          ensure_ascii=False, indent=2)
-        except OSError:
-            raise ProcessorError("[ERROR]: Cannot save search results")
         return student_results
 
     @staticmethod
     def _load_source_content(source: MinimalSource) -> str:
+        """Returns the content of a given source"""
         path = Path(source.file_path)
         if not path.exists():
             raise ProcessorError(f"[ERROR]: Source not found: {path}")
@@ -196,6 +220,7 @@ class Processor:
             source.first_character_index: source.last_character_index + 1]
 
     def _build_context(self, sources: list[MinimalSource]) -> str:
+        """Builds a context from a list of sources"""
         contexts = []
         for index, source in enumerate(sources, start=1):
             content = self._load_source_content(source)
@@ -205,14 +230,36 @@ class Processor:
         return "\n\n".join(contexts)
 
     def answer(self, query: str, k: int = 5) -> str:
+        """Answers a single query by retrieving the relevant sources,
+           building context out of it and sending it to a LLM.
+
+        Args:
+            query (str): The query to answer
+            k (int, optional): The maximal number of sourcesretrieved.
+                               Defaults to 5.
+
+        Returns:
+            str: The answer
+        """
         if self.llm is None:
             self.llm = LLM()
         search_result = self.search(query=query, k=k)
         context = self._build_context(search_result.retrieved_sources)
         return str(self.llm._generate_answer(question=query, context=context))
 
-    def answer_dataset(self, student_search_results_path: str,
-                       save_directory: str) -> str:
+    def answer_dataset(self, student_search_results_path: str
+                       ) -> StudentSearchResultsAndAnswer:
+        """Answers all questions in the provided dataset by building a context
+           from the retrieved sources and sending it to a LLM.
+
+        Args:
+            student_search_results_path (str): The path to the previously
+                                               retrieved sources
+            save_directory (str): The folder in which to save the results
+
+        Returns:
+            StudentSearchResultsAndAnswer: The answered dataset
+        """
         # ------
         # Read results file
         # ------
@@ -248,16 +295,4 @@ class Processor:
                               answer=response))
         final_results = (StudentSearchResultsAndAnswer(
             search_results=answers, k=student_results.k))
-        # ------
-        # Save
-        # ------
-        file_basename = os.path.basename(student_search_results_path)
-        os.makedirs(save_directory, exist_ok=True)
-        output_path = (f"{save_directory}/{file_basename}")
-        try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(final_results.model_dump(), f, ensure_ascii=False,
-                          indent=2)
-        except OSError as e:
-            raise ProcessorError("[ERROR]: Could not save answers") from e
-        return str(output_path)
+        return final_results

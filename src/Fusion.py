@@ -5,6 +5,9 @@ class RRF:
 
     @staticmethod
     def _source_key_from_document(document: Document) -> tuple[str, int, int]:
+        """Returns a Document's source, first and last character
+           index as a tuple
+        """
         return (document.metadata["file_path"],
                 document.metadata["first_character_index"],
                 document.metadata["last_character_index"])
@@ -12,6 +15,18 @@ class RRF:
     def _rrf(self, bm25_documents: list[Document],
              chroma_documents: list[Document],
              k: int, rrf_k: int = 60) -> list[Document]:
+        """A Reciprocal Rank Fusion algorithm used to merge results
+           from both retrievers
+
+        Args:
+            bm25_documents (list[Document]): The results retrieved by BM25s
+            chroma_documents (list[Document]): The results retrieved by Chroma
+            k (int): The max number of sources to use
+            rrf_k (int, optional): An empirical constant. Defaults to 60.
+
+        Returns:
+            list[Document]: The top-k documents sorted by rrf
+        """
         scores: dict[tuple[str, int, int], float] = {}
         documents: dict[tuple[str, int, int], Document] = {}
         # ------

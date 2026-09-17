@@ -1,6 +1,9 @@
+import json
+import os
+
 import fire
 
-from .Evaluator import EvaluationError, Evaluator
+from .Evaluator import Evaluator, EvaluatorError
 from .Processor import Processor, ProcessorError
 from .retrievers.BM25S import RetrieverError
 
@@ -9,6 +12,14 @@ class CLI:
 
     @staticmethod
     def index(max_chunk_size: int = 2000, bonus: bool = False) -> None:
+        """Indexes a whole batch of files
+
+        Args:
+            max_chunk_size (int, optional): The max size possible for
+                                            every chunk in a splitted file.
+            bonus (bool, optional): Set to true for hybrid RAG.
+                                    Defaults to False.
+        """
         processor = Processor(bonus=bonus)
         try:
             processor.index(max_chunk_size)
@@ -17,6 +28,14 @@ class CLI:
 
     @staticmethod
     def search(query: str, k: int = 5, bonus: bool = False) -> None:
+        """Searches the top-k relevant sources for a given query
+
+        Args:
+            query (str): The query to process
+            k (int, optional): The number of sources returned. Defaults to 5.
+            bonus (bool, optional): Set to True for hybrid RAG.
+                                    Defaults to False.
+        """
         processor = Processor(bonus=bonus)
         try:
             result = processor.search(query, k)
@@ -31,14 +50,42 @@ class CLI:
     @staticmethod
     def search_dataset(dataset_path: str, k: int, save_directory: str,
                        bonus: bool = False) -> None:
+        """Searches the top-k relevant sources for each question in the
+           dataset and saves it
+
+        Args:
+            dataset_path (str): The dataset to process
+            k (int): The number of sources returned.
+            save_directory (str): The folder in which to save the result
+            bonus (bool, optional): Set to True for hybrid RAG.
+                                    Defaults to False.
+        """
         processor = Processor(bonus=bonus)
         try:
-            processor.search_dataset(dataset_path, k, save_directory)
+            student_results = processor.search_dataset(dataset_path, k)
         except ProcessorError as e:
             raise ProcessorError(e)
+        # ------
+        # Save
+        # ------
+        file_basename = os.path.basename(dataset_path)
+        os.makedirs(save_directory, exist_ok=True)
+        output_path = (f"{save_directory}/{file_basename}")
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(student_results.model_dump(), f,
+                          ensure_ascii=False, indent=2)
+        except OSError:
+            raise ProcessorError("[ERROR]: Cannot save search results")
 
     @staticmethod
     def answer(query: str, k: int = 5) -> None:
+        """Tries answering the query using the top-k most relevant sources
+
+        Args:
+            query (str): The query to process
+            k (int, optional): The number of sources to use. Defaults to 5.
+        """
         processor = Processor()
         try:
             answer = processor.answer(query, k)
@@ -49,21 +96,46 @@ class CLI:
     @staticmethod
     def answer_dataset(student_search_results_path: str,
                        save_directory: str) -> None:
+        """Generates answers for a previously generated dataset,
+        producing a StudentSearchResultsAndAnswer JSON file
+
+        Args:
+            student_search_results_path (str): The dataset to process
+            save_directory (str): The folder in which to save the results
+        """
         processor = Processor()
         try:
-            processor.answer_dataset(student_search_results_path,
-                                     save_directory)
+            final_results = processor.answer_dataset(
+                student_search_results_path)
         except ProcessorError as e:
             raise ProcessorError(f"Answering failed: {e}")
+        # ------
+        # Save
+        # ------
+        file_basename = os.path.basename(student_search_results_path)
+        os.makedirs(save_directory, exist_ok=True)
+        output_path = (f"{save_directory}/{file_basename}")
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(final_results.model_dump(), f, ensure_ascii=False,
+                          indent=2)
+        except OSError as e:
+            raise ProcessorError("[ERROR]: Could not save answers") from e
 
     @staticmethod
     def evaluate(student_search_results_path: str, dataset_path: str) -> None:
+        """Reports the student's recall against a ground_truth dataset
+
+        Args:
+            student_search_results_path (str): The student's dataset path
+            dataset_path (str): The ground_truth dataset path
+        """
         evaluator = Evaluator()
         try:
             results = evaluator.evaluate(student_search_results_path,
                                          dataset_path)
-        except EvaluationError as e:
-            raise EvaluationError(e)
+        except EvaluatorError as e:
+            raise EvaluatorError(e)
         print(f"--- Evaluation results ---\n"
               f"Recall@1: {int(results.recall1 * 100)}%\n"
               f"Recall@3: {int(results.recall3 * 100)}%\n"
@@ -77,5 +149,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('\033[H\033[J')
         print("\033[0;32mAborted - See you soon :D\033[0;0m")
-    except (RetrieverError, ProcessorError, EvaluationError) as e:
+    except (RetrieverError, ProcessorError, EvaluatorError) as e:
         print(e)

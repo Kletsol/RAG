@@ -7,10 +7,12 @@ from .Models import AnsweredQuestion, RagDataset, StudentSearchResults
 
 
 class EvaluatorError(Exception):
+    """A custom error for evaluation"""
     pass
 
 
 class EvaluationResult(BaseModel):
+    """A pydantic model to validate evaluation results"""
     recall1: float
     recall3: float
     recall5: float
@@ -21,6 +23,8 @@ class EvaluationResult(BaseModel):
 class Evaluator:
     def evaluate(self, student_search_results_path: str, dataset_path: str
                  ) -> EvaluationResult:
+        """Load the student's search results, calculates recall
+           for different values of k and returns the result"""
         try:
             with open(student_search_results_path, "r", encoding="utf-8") as f:
                 student_results = (
@@ -30,7 +34,6 @@ class Evaluator:
         except (OSError, json.JSONDecodeError, ValueError):
             raise EvaluatorError("[ERROR]: Could not load evaluation data")
 
-        # Calculate results
         values = [1, 3, 5, 10]
         recalls = []
         for k in tqdm(values, desc="Calculating recall@k", colour='cyan'):
@@ -54,10 +57,8 @@ class Evaluator:
         dataset: RagDataset,
             k: int) -> float:
         """
-        Calculate the recall@k score over the whole dataset
-        compared to the ground-truth dataset.
-
-        Return a ratio of good retrieving (overlap of 0.05% at least)
+        Calculates an average recall@k over the whole student's dataset
+        compared to the ground-truth dataset. Returns the score.
         """
         ground_truth = {}
 

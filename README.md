@@ -72,7 +72,7 @@ My RAG is built on the model of an Hybrid RAG and therefore follows these steps:
 **2- Search:**
 
 - Each query is treated both by two retrievers: BM25S (lexical) and Chroma (semantic)
-- The results of each retriever are then fused using a Reciprocal Rank Fusion (RRF)algorithm, to get the most relevant sources
+- The results of each retriever are then fused using a Reciprocal Rank Fusion (RRF) algorithm, to get the most relevant sources
 
 **3- Answer:**
 

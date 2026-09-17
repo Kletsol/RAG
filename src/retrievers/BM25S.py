@@ -9,6 +9,7 @@ from pydantic import ConfigDict, Field
 
 
 class RetrieverError(Exception):
+    """A custom error for retrievers"""
     pass
 
 
@@ -23,6 +24,7 @@ class BM25SRetriever(BaseRetriever):
     @classmethod
     def index(cls, documents: list[Document], k: int = 5,
               path: str | None = None) -> "BM25SRetriever":
+        """Builds a BM25s index from documents and returns a retriever"""
         if not documents:
             raise RetrieverError("[ERROR]: Cannot index empty corpus")
         corpus = [doc.page_content for doc in documents]
@@ -39,15 +41,18 @@ class BM25SRetriever(BaseRetriever):
     @classmethod
     def from_index(cls, path: str, documents: list[Document], k: int = 5
                    ) -> "BM25SRetriever":
+        """Loads an existing BM25s index from disk and returns a retriever"""
         try:
             index = bm25s.BM25.load(path, load_corpus=False)
-        except (FileNotFoundError, ValueError) as e:
-            raise RetrieverError("[ERROR]: Cannot load BM25 index") from e
+        except (FileNotFoundError, ValueError):
+            raise RetrieverError("[ERROR]: Cannot load BM25 index")
         return cls(retriever=index, documents=documents, k=k)
 
     def _get_relevant_documents(
             self, query: str, *, run_manager: CallbackManagerForRetrieverRun
             ) -> list[Document]:
+        """Gets the top-k documents matching the query using BM25s, and
+           returns it"""
         if not self.documents:
             return []
         tokenized_query = bm25s.tokenize([query])
@@ -64,6 +69,7 @@ class BM25SRetriever(BaseRetriever):
         return documents
 
     def save(self, path: str = "./data/processed") -> None:
+        """Saves the index in a given directory"""
         directory = Path(path)
         directory.mkdir(parents=True, exist_ok=True)
         try:
@@ -72,8 +78,6 @@ class BM25SRetriever(BaseRetriever):
             with open(directory / "documents.json", 'w',
                       encoding="utf-8") as f:
                 json.dump(documents, f, ensure_ascii=False, indent=2)
-        except PermissionError as e:
+        except PermissionError:
             raise RetrieverError("[ERROR]: Cannot save documents in folder -"
-                                 " permission denied") from e
-
-    # def load(self, path: str = "./data/processed") -> None:
+                                 f" permission denied for {path}")
