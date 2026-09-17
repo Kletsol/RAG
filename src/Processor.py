@@ -1,18 +1,16 @@
 import json
 import os
-import re
 import uuid
 from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from tqdm import tqdm
-from transformers import GenerationConfig, pipeline
 
 from .Fusion import RRF
+from .LLM import LLM
 from .LoaderSplitter import LoaderError, LoaderSplitter
 from .Models import (
-    AnsweredQuestion,
     MinimalAnswer,
     MinimalSearchResults,
     MinimalSource,
@@ -42,6 +40,7 @@ class Processor:
         self.embeddings: HuggingFaceEmbeddings | None = None
         self.vector: bool = bonus
         self.merger = None
+        self.llm = None
 
     def index(self, max_chunk_size: int = 2000) -> None:
         if max_chunk_size < 200:
@@ -190,9 +189,9 @@ class Processor:
             raise ProcessorError(f"[ERROR]: Source not found: {path}")
         try:
             content = path.read_text(encoding="utf-8")
-        except OSError as e:
+        except OSError:
             raise ProcessorError(
-                f"[ERROR]: Could not read source: {path}") from e
+                f"[ERROR]: Could not read source: {path}")
         return content[
             source.first_character_index: source.last_character_index + 1]
 
@@ -205,36 +204,12 @@ class Processor:
                             f"{content}")
         return "\n\n".join(contexts)
 
-    def _generate_answer(self, question: str, context: str) -> str:
-        pipe = pipeline("text-generation", model='Qwen/Qwen3-0.6B',
-                        device_map='auto', clean_up_tokenization_spaces=False)
-        message = [
-            {'role': 'system',
-             'content': f"""Answer the user's question using ONLY the provided
-             context.
-
-Rules:
-- The context is : {context}.
-- '{question}' is never a part of the context.
-- Do NOT use external knowledge.
-- Do NOT invent information.
-- If the context does not contain enough information do NOT answer. Just
-  say that the answer cannot be determined from the provided context.
-- Be concise and answer the question using technical terms from the context."""
-            },
-            {'role': 'user',
-             'content': f'{question} /no_think'}
-        ]
-        gen_config = GenerationConfig.from_pretrained('Qwen/Qwen3-0.6B')
-        gen_config.max_new_tokens = 256
-        output = pipe(message, generation_config=gen_config)
-        llm_response = str(output[0]["generated_text"][-1]["content"])
-        return re.sub(r"<think>[\s\S]*?<\/think>\s*", '', llm_response)
-
     def answer(self, query: str, k: int = 5) -> str:
+        if self.llm is None:
+            self.llm = LLM()
         search_result = self.search(query=query, k=k)
         context = self._build_context(search_result.retrieved_sources)
-        return self._generate_answer(question=query, context=context)
+        return self.llm._generate_answer(question=query, context=context)
 
     def answer_dataset(self, student_search_results_path: str,
                        save_directory: str) -> str:
@@ -258,11 +233,14 @@ Rules:
         # ------
         answers = []
 
+        if self.llm is None:
+            self.llm = LLM()
+
         for result in tqdm(student_results.search_results, desc='Answering',
                            colour='green'):
             context = self._build_context(result.retrieved_sources)
-            response = self._generate_answer(question=result.question,
-                                             context=context)
+            response = self.llm._generate_answer(question=result.question,
+                                                 context=context)
             answers.append(
                 MinimalAnswer(question_id=result.question_id,
                               question=result.question,
@@ -283,48 +261,3 @@ Rules:
         except OSError as e:
             raise ProcessorError("[ERROR]: Could not save answers") from e
         return str(output_path)
-
-    def evaluate(self, student_search_results_path: str, dataset_path: str
-                 ) -> None:
-        try:
-            with open(student_search_results_path, "r", encoding="utf-8") as f:
-                student_results = (
-                    StudentSearchResults.model_validate(json.load(f)))
-            with open(dataset_path, "r", encoding="utf-8") as f:
-                dataset = RagDataset.model_validate(json.load(f))
-        except (OSError, json.JSONDecodeError, ValueError) as e:
-            raise ProcessorError(
-                "[ERROR]: Could not load evaluation data") from e
-
-        ground_truth = {}
-
-        for question in dataset.rag_questions:
-            if isinstance(question, AnsweredQuestion):
-                ground_truth[question.question_id] = question.sources
-        recalls = []
-        for result in student_results.search_results:
-            expected_sources = ground_truth.get(result.question_id)
-            if not expected_sources:
-                continue
-            hits = 0
-            for expected_source in expected_sources:
-                found = False
-                for retrieved_source in result.retrieved_sources:
-                    if (expected_source.file_path == retrieved_source.file_path
-                        and expected_source.first_character_index
-                        <= retrieved_source.last_character_index
-                        and retrieved_source.first_character_index
-                            <= expected_source.last_character_index):
-                        found = True
-                        break
-                if found:
-                    hits += 1
-            recall = hits / len(expected_sources)
-            recalls.append(recall)
-            print(f"{result.question_id}: "
-                  f"recall@{student_results.k} = {recall:.4f}")
-        if not recalls:
-            print("No questions available for evaluation")
-            return
-        mean_recall = sum(recalls) / len(recalls)
-        print(f"\nMean recall@{student_results.k}: {mean_recall:.4f}")

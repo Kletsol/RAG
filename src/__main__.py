@@ -1,6 +1,6 @@
 import fire
 
-# from transformers import pipeline
+from .Evaluator import EvaluationError, Evaluator
 from .Processor import Processor, ProcessorError
 from .retrievers.BM25S import RetrieverError
 
@@ -58,11 +58,17 @@ class CLI:
 
     @staticmethod
     def evaluate(student_search_results_path: str, dataset_path: str) -> None:
-        processor = Processor()
+        evaluator = Evaluator()
         try:
-            processor.evaluate(student_search_results_path, dataset_path)
-        except ProcessorError as e:
-            raise ProcessorError("[ERROR]: Evaluation failed") from e
+            results = evaluator.evaluate(student_search_results_path,
+                                         dataset_path)
+        except EvaluationError as e:
+            raise EvaluationError(e)
+        print(f"--- Evaluation results ---\n"
+              f"Recall@1: {int(results.recall1 * 100)}%\n"
+              f"Recall@3: {int(results.recall3 * 100)}%\n"
+              f"Recall@5: {int(results.recall5 * 100)}%\n"
+              f"Recall@10: {int(results.recall10 * 100)}%\n")
 
 
 if __name__ == "__main__":
@@ -71,5 +77,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('\033[H\033[J')
         print("\033[0;32mAborted - See you soon :D\033[0;0m")
-    except (RetrieverError, ProcessorError) as e:
+    except (RetrieverError, ProcessorError, EvaluationError) as e:
         print(e)
