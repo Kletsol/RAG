@@ -124,7 +124,7 @@ My design was primarily dictated by the constraints of the subject :
 - The repository's layout respects the structure given by the subject
 - Same for the CLI
 - Regarding the project itself, I chose BM25 over TF-IDF because BM25 incorporates a crucial adjustment for document length : this prevents very long documents from being unfairly ranked due to an excessively high word count. And more generally, it's considered a more advanced model.
-- The rest of the project is built around this idea, with semantic embeddings and Hybrid retrieval as a bonus.
+- The rest of the project is built around this idea, with semantic embeddings and hybrid retrieval as a bonus.
 
 <span style="color:orange">
 
@@ -140,4 +140,30 @@ During the execution of this project, I faced two main challenges :
 ### -> Example usage
 </span>
 
-Text
+To go through the whole pipeline, use the following steps :
+
+-> Install the project:
+
+    make install
+
+-> Index the corpus:
+
+    uv run python3 -m src index --max_chunk_size <int>
+
+-> Search a dataset:
+
+    uv run python3 -m src search_dataset --dataset_path <path> --k <int> --save_directory <dir>
+
+-> Score your results:
+
+    uv run python3 -m src evaluate --student_search_result_path <path> --dataset_path <path>
+
+-> Generate answers from the search results:
+
+    uv run python3 -m src answer_dataset --student_search_results_path <path> --save_directory <dir>
+
+You can also search and answer a single query, using:
+
+    uv run python3 -m src search --query <str> --k <int>
+
+    uv run python3 -m src answer --query <str> --k <int>

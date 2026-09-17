@@ -73,7 +73,7 @@ class Evaluator:
             hits = 0
             for expected_source in expected_sources:
                 found = False
-                for ret_src in result.ret_srcs[:k]:
+                for ret_src in result.retrieved_sources[:k]:
                     if expected_source.file_path == ret_src.file_path:
                         src = expected_source
                         intersection = max(

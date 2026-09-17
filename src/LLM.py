@@ -11,7 +11,7 @@ class LLM:
                              device_map='auto',
                              clean_up_tokenization_spaces=False)
 
-    def _generate_answer(self, question: str, context: str) -> str:
+    def generate_answer(self, question: str, context: str) -> str:
         """Uses an LLM to answer a question depending on the
            provided context. Returns the answer."""
         message = [

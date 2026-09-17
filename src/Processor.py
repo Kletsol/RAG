@@ -41,7 +41,7 @@ class Processor:
         self.embeddings: HuggingFaceEmbeddings | None = None
         self.vector: bool = bonus
         self.merger = None
-        self.llm = LLM | None
+        self.llm: LLM | None = None
 
     def index(self, max_chunk_size: int = 2000) -> None:
         """Indexes the whole dataset using one or two retrievers
@@ -245,7 +245,7 @@ class Processor:
             self.llm = LLM()
         search_result = self.search(query=query, k=k)
         context = self._build_context(search_result.retrieved_sources)
-        return str(self.llm._generate_answer(question=query, context=context))
+        return str(self.llm.generate_answer(question=query, context=context))
 
     def answer_dataset(self, student_search_results_path: str
                        ) -> StudentSearchResultsAndAnswer:
@@ -286,8 +286,8 @@ class Processor:
         for result in tqdm(student_results.search_results, desc='Answering',
                            colour='green'):
             context = self._build_context(result.retrieved_sources)
-            response = self.llm._generate_answer(question=result.question,
-                                                 context=context)
+            response = self.llm.generate_answer(question=result.question,
+                                                context=context)
             answers.append(
                 MinimalAnswer(question_id=result.question_id,
                               question=result.question,
