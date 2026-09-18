@@ -31,7 +31,7 @@ class Processor:
 
     def __init__(self, raw_directory: str = "./data/raw",
                  processed_directory: str = "./data/processed",
-                 bonus: bool = False):
+                 activate_bonus: bool = False):
         self.raw_dir = Path(raw_directory)
         self.processed_dir = Path(processed_directory)
         self.bm25s_dir = (self.processed_dir / "bm25")
@@ -39,7 +39,7 @@ class Processor:
         self.bm25_retriever = None
         self.vector_retriever = None
         self.embeddings: HuggingFaceEmbeddings | None = None
-        self.vector: bool = bonus
+        self.vector: bool = activate_bonus
         self.merger = None
         self.llm: LLM | None = None
 
@@ -142,6 +142,8 @@ class Processor:
             MinimalSearchResults: The result of the search
         """
         self.load(k=k)
+        if self.vector is True and self.merger is None:
+            self.merger = RRF()
         if not query.strip():
             raise ProcessorError("[ERROR]: Empty query")
         if k <= 0:
@@ -154,8 +156,8 @@ class Processor:
             bm25_documents = (self.bm25_retriever.invoke(query))
             if self.vector is True:
                 chroma_documents = (self.vector_retriever.invoke(query))
-        except Exception as e:
-            raise ProcessorError("[ERROR]: Retrieval failed") from e
+        except Exception:
+            raise ProcessorError("[ERROR]: Retrieval failed")
 
         if self.vector is True:
             documents = self.merger._rrf(bm25_documents=bm25_documents,
@@ -185,7 +187,6 @@ class Processor:
             raise ProcessorError("[ERROR]: k must be greater than 0")
         if self.vector is True:
             self.merger = RRF()
-        # self.load(k=k)
         try:
             with open(dataset_path, "r", encoding="utf-8") as f:
                 dataset = RagDataset.model_validate(json.load(f))

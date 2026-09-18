@@ -20,11 +20,12 @@ class CLI:
             bonus (bool, optional): Set to true for hybrid RAG.
                                     Defaults to False.
         """
-        processor = Processor(bonus=bonus)
+        processor = Processor(activate_bonus=bonus)
         try:
             processor.index(max_chunk_size)
         except RetrieverError as e:
             raise RetrieverError(e)
+        print("\033[1;34m[SUCCESS] - Corpus indexed and saved\033[0;0m")
 
     @staticmethod
     def search(query: str, k: int = 5, bonus: bool = False) -> None:
@@ -36,7 +37,7 @@ class CLI:
             bonus (bool, optional): Set to True for hybrid RAG.
                                     Defaults to False.
         """
-        processor = Processor(bonus=bonus)
+        processor = Processor(activate_bonus=bonus)
         try:
             result = processor.search(query, k)
         except ProcessorError as e:
@@ -60,7 +61,7 @@ class CLI:
             bonus (bool, optional): Set to True for hybrid RAG.
                                     Defaults to False.
         """
-        processor = Processor(bonus=bonus)
+        processor = Processor(activate_bonus=bonus)
         try:
             student_results = processor.search_dataset(dataset_path, k)
         except ProcessorError as e:
@@ -69,14 +70,15 @@ class CLI:
         # Save
         # ------
         file_basename = os.path.basename(dataset_path)
-        os.makedirs(save_directory, exist_ok=True)
-        output_path = (f"{save_directory}/{file_basename}")
         try:
+            os.makedirs(save_directory, exist_ok=True)
+            output_path = (f"{save_directory}/{file_basename}")
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(student_results.model_dump(), f,
                           ensure_ascii=False, indent=2)
-        except OSError:
-            raise ProcessorError("[ERROR]: Cannot save search results")
+        except OSError as e:
+            raise ProcessorError(f"[ERROR]: Cannot save search results - {e}")
+        print("\033[1;34m[SUCCESS] - Search results saved\033[0;0m")
 
     @staticmethod
     def answer(query: str, k: int = 5) -> None:
@@ -113,14 +115,15 @@ class CLI:
         # Save
         # ------
         file_basename = os.path.basename(student_search_results_path)
-        os.makedirs(save_directory, exist_ok=True)
-        output_path = (f"{save_directory}/{file_basename}")
         try:
+            os.makedirs(save_directory, exist_ok=True)
+            output_path = (f"{save_directory}/{file_basename}")
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(final_results.model_dump(), f, ensure_ascii=False,
                           indent=2)
-        except OSError as e:
-            raise ProcessorError("[ERROR]: Could not save answers") from e
+        except (OSError, PermissionError) as e:
+            raise ProcessorError(f"[ERROR]: Could not save answers - {e}")
+        print("\033[1;34m[SUCCESS] - Queries answered and saved\033[0;0m")
 
     @staticmethod
     def evaluate(student_search_results_path: str, dataset_path: str) -> None:
@@ -150,4 +153,4 @@ if __name__ == "__main__":
         print('\033[H\033[J')
         print("\033[0;32mAborted - See you soon :D\033[0;0m")
     except (RetrieverError, ProcessorError, EvaluatorError) as e:
-        print(e)
+        print(f"\033[0;31m{e}\033[0;0m")

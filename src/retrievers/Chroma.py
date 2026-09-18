@@ -25,7 +25,7 @@ class VectorRetriever(BaseRetriever):
 
         vectorstore = Chroma.from_documents(
             documents=first_batch, embedding=embeddings,
-            persist_directory=path, collection_name="test")
+            persist_directory=path, collection_name="rag_chunks")
 
         remaining_docs = documents[250:]
         if remaining_docs:
