@@ -141,7 +141,8 @@ class Processor:
         Returns:
             MinimalSearchResults: The result of the search
         """
-        self.load(k=k)
+        if self.bm25_retriever is None and self.vector_retriever is None:
+            self.load(k=k)
         if self.vector is True and self.merger is None:
             self.merger = RRF()
         if not query.strip():
@@ -195,6 +196,7 @@ class Processor:
                                  f"\033[0;0m {e}")
 
         results = []
+        self.load(k=k)
 
         length = len(dataset.rag_questions)
         for question in tqdm(dataset.rag_questions,
